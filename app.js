@@ -340,8 +340,8 @@ async function computeBoardHashAndUpdateUI() {
   const flat = board.answers.flat().join("|");
   const h = await sha256hex(flat);
   if (currentMode === 'daily') {
-    // board id for daily mode should be the UTC date
-    dom.boardHash.textContent = currentBoardId || getTodayUTCDateStr();
+    // board id for daily mode should be the local date
+    dom.boardHash.textContent = currentBoardId || getTodayDateStr();
   } else {
     dom.boardHash.textContent = h.slice(0, 6);
     currentBoardId = h.slice(0, 6);
@@ -371,9 +371,12 @@ function computeMaxScore() {
 }
 
 // ---------- Daily mode helpers ----------
-function getTodayUTCDateStr(d) {
+function getTodayDateStr(d) {
   const now = d ? new Date(d) : new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString().slice(0, 10);
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function startCountdown() {
@@ -382,7 +385,8 @@ function startCountdown() {
   dom.countdownRow.style.display = 'flex';
   function update() {
     const now = new Date();
-    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
+    // Calculate midnight in local time (next day at 00:00:00)
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
     let diff = next.getTime() - now.getTime();
     if (diff < 0) diff = 0;
     dom.countdown.textContent = formatMs(diff);
@@ -445,7 +449,7 @@ function loadDailyState(dateStr) {
   }
 }
 
-// Build the deterministic daily board for a given UTC date string (YYYY-MM-DD)
+// Build the deterministic daily board for a given local date string (YYYY-MM-DD)
 function generateDailyBoardForDate(dateStr) {
   const seed = strToSeed(dateStr);
   const rng = mulberry32(seed);
@@ -645,7 +649,7 @@ async function submitGuessForModal() {
     attempt.valid = false;
     attempt.reason = 'not_in_wordlist';
     guesses.push(attempt);
-    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayUTCDateStr());
+    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
     updateStatus();
     await showAlert("That word is not in the word list.");
     return;
@@ -660,7 +664,7 @@ async function submitGuessForModal() {
     attempt.valid = false;
     attempt.reason = 'duplicate';
     guesses.push(attempt);
-    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayUTCDateStr());
+    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
     updateStatus();
     await showAlert(`That word is already used in another cell.`);
     return;
@@ -693,7 +697,7 @@ async function submitGuessForModal() {
   updateStatus();
   // persist daily progress
   if (currentMode === 'daily') {
-    saveDailyState(currentBoardId || getTodayUTCDateStr());
+    saveDailyState(currentBoardId || getTodayDateStr());
   }
   checkBoardComplete();
 }
@@ -722,7 +726,7 @@ function checkBoardComplete() {
     updateStatus();
     setTimeout(() => showAlert(`Board complete! Bonus ${bonus} points awarded. Final score: ${score}`), 80);
     // persist final daily result
-    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayUTCDateStr());
+    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
   }
 }
 
@@ -798,7 +802,7 @@ function setMode(mode) {
   // disable reroll for daily
   if (dom.rerollBtn) dom.rerollBtn.disabled = mode === 'daily';
   if (mode === 'daily') {
-    const today = getTodayUTCDateStr();
+    const today = getTodayDateStr();
     currentBoardId = today;
     startCountdown();
     generateDailyBoardForDate(today);
