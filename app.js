@@ -1,27 +1,59 @@
-const WORDS_URL = "words.txt";
-
 // Word list
 let WORDS = [];
 
-// Attempt to load words from URL.
+// Attempt to load words from URL. Try a gzipped version first, then fall back to plaintext.
 async function loadWordlist() {
   try {
-    const resp = await fetch(WORDS_URL, { cache: "no-store" });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    // Parse newline-seperated entries
-    const txt = await resp.text();
+    let txt = null;
+
+    // Try to fetch a gzipped wordlist first (words.txt.gz). This is a small binary
+    // transfer and will be decompressed in the browser using pako.
+    try {
+      const gzResp = await fetch('words.txt.gz', { cache: 'no-store' });
+      if (gzResp && gzResp.ok) {
+        // get binary data and ungzip
+        const buf = await gzResp.arrayBuffer();
+        if (typeof pako !== 'undefined' && pako.ungzip) {
+          try {
+            txt = pako.ungzip(new Uint8Array(buf), { to: 'string' });
+            console.info('Loaded and decompressed words.txt.gz');
+          } catch (e) {
+            console.warn('Failed to decompress words.txt.gz in browser, falling back.', e);
+            txt = null;
+          }
+        } else {
+          console.warn('pako not available to decompress words.txt.gz; falling back to plain words.txt');
+          txt = null;
+        }
+      }
+    } catch (e) {
+      // network error or not present — fall through to plaintext fetch
+      txt = null;
+    }
+
+    // If gz fetch/decompress failed, fall back to plain text file
+    if (txt === null) {
+      const resp = await fetch('words.txt', { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      txt = await resp.text();
+      console.info('Loaded words.txt (plaintext)');
+    }
+
+    // Parse newline-separated entries
     const arr = txt
       .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
+      .map((l) => l.trim().toLowerCase())
+      .filter((l) => (l.length > 0) && !l.startsWith('#'));
+
     if (arr.length > 0) {
       WORDS = arr;
-      console.info(`Loaded ${WORDS.length} words from text at ${WORDS_URL}`);
+      console.info(`Loaded ${WORDS.length} words`);
       return;
     }
-    throw new Error("No words found in fetched content");
+    throw new Error('No words found in fetched content');
   } catch (err) {
-    await showAlert("Could not load wordlist. Sorry!");
+    console.error('Wordlist load error:', err);
+    await showAlert('Could not load wordlist. Sorry!');
   }
 }
 
