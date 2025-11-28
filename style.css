@@ -7,12 +7,12 @@
   --success: #2c7bd9;
   /* base tile size; responsive rules will override */
   --cell-size: 120px;
-  font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
   color-scheme: dark;
 }
 
 * {
   box-sizing: border-box;
+  font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 body {
