@@ -131,7 +131,7 @@ main {
   flex-direction: column;
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.02);
   position: relative;
-  cursor: pointer;
+  cursor: default;
 }
 
 .cell .word {
@@ -161,11 +161,23 @@ main {
 
 .cell.hidden {
   filter: brightness(0.9);
+  cursor: pointer;
+}
+
+/* Focus styles for keyboard users on interactive (hidden) cells */
+.cell.hidden:focus {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.cell.hidden:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .cell.revealed {
   background: linear-gradient(180deg, var(--success), #155a9b);
   color: white;
+  cursor: default;
 }
 
 /* Sidebar */

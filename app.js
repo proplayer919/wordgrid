@@ -476,15 +476,33 @@ function renderGrid() {
       cell.className = "cell hidden";
       cell.dataset.r = r;
       cell.dataset.c = c;
+      const rowLabel = board.rows[r] && board.rows[r].label ? board.rows[r].label : '';
+      const colLabel = board.cols[c] && board.cols[c].label ? board.cols[c].label : '';
       if (board.revealed[r][c]) {
         cell.classList.remove("hidden");
         cell.classList.add("revealed");
         // show only the guessed word; remove the small meta text under the word
         cell.innerHTML = `<div class="word">${board.answers[r][c]}</div>`;
+        // Make revealed cells explicitly unfocusable and non-interactive for accessibility
+        cell.tabIndex = -1;
+        cell.setAttribute('aria-disabled', 'true');
+        cell.setAttribute('aria-label', `${rowLabel} + ${colLabel} — ${board.answers[r][c]}. Revealed.`);
       } else {
         cell.innerHTML = `<div class="word">?</div>`;
+        // Make unrevealed cells keyboard accessible and interactive
+        cell.tabIndex = 0;
+        cell.setAttribute('role', 'button');
+        cell.setAttribute('aria-label', `${rowLabel} + ${colLabel} — hidden. Press Enter or Space to guess.`);
+        // Click handler for pointer users
+        cell.addEventListener("click", () => openCellModal(r, c));
+        // Keyboard activation for Enter and Space
+        cell.addEventListener("keydown", (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openCellModal(r, c);
+          }
+        });
       }
-      cell.addEventListener("click", () => openCellModal(r, c));
       dom.grid.appendChild(cell);
     }
   }
