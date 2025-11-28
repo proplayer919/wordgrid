@@ -1,0 +1,348 @@
+:root {
+  --bg: #272730;
+  --muted: #9aa0b3;
+  --accent: #7d71ff;
+  --tile: #22212a;
+  --glass: #2f2b36;
+  --success: #2c7bd9;
+  font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: #e7e9ef;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.app {
+  width: 100%;
+  max-width: 1100px;
+  background: transparent;
+  /* no card background */
+  border-radius: 12px;
+  padding: 18px 0;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  /* keep spacing but no header bg */
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.app-header .sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+main {
+  display: flex;
+  gap: 18px;
+  margin-top: 8px;
+  padding: 0 18px;
+}
+
+#boardArea {
+  flex: 1;
+}
+
+.grid-wrap {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+}
+
+/* GRID: use 120px squares for headers and cells */
+.grid {
+  display: grid;
+  grid-template-columns: 120px repeat(3, 120px);
+  grid-template-rows: 120px repeat(3, 120px);
+  gap: 12px;
+  align-items: center;
+}
+
+/* top-left logo square (same size as headers/cells) */
+.logo-square {
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  background: lnone;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  image-rendering: pixelated;
+}
+
+/* column headers (top row, after logo) - square same as cells */
+.col-header {
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  background: var(--glass);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 8px;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* row headers (first column for each row) - square same as cells */
+.row-header {
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  background: var(--glass);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* inner cells */
+.cell {
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  background: var(--tile);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.02);
+  position: relative;
+  cursor: pointer;
+}
+
+.cell .word {
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 1px;
+}
+
+/* Ensure long words wrap inside the tile instead of overflowing */
+.cell .word {
+  display: block;
+  width: 100%;
+  padding: 0 6px;
+  text-align: center;
+  line-height: 1.1;
+  /* allow wrapping and break very long words */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.cell .meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+.cell.hidden {
+  filter: brightness(0.9);
+}
+
+.cell.revealed {
+  background: linear-gradient(180deg, var(--success), #155a9b);
+  color: white;
+}
+
+/* Sidebar */
+aside#sidebar {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.board-info {
+  background: transparent;
+  padding: 6px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.mode-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.mode-btn.active {
+  background: var(--accent);
+  color: white;
+}
+
+.countdown {
+  font-weight: 700;
+}
+
+.info-row .icon {
+  width: 28px;
+  height: 28;
+  border-radius: 6px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-row .icon i {
+  font-size: 18px;
+  width: 20px;
+  height: 20px;
+  display: inline-block;
+  text-align: center;
+  line-height: 1;
+  color: inherit;
+}
+
+.info-row .value {
+  font-family: monospace;
+}
+
+.reroll {
+  margin-top: 6px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--accent);
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.reroll[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.reroll .rotate i {
+  font-size: 14px;
+}
+
+.status {
+  background: transparent;
+  padding: 6px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 60;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  width: 420px;
+  background: rgba(30, 30, 36, 0.9);
+  padding: 16px;
+  border-radius: 10px;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.modal-close i {
+  font-size: 16px;
+}
+
+.modal-header {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.modal-body label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.modal-body input {
+  width: 100%;
+  padding: 8px;
+  margin-top: 8px;
+  border-radius: 8px;
+  border: none;
+  background: #1f1e24;
+  color: #fff;
+}
+
+.modal-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+button {
+  background: var(--accent);
+  border: none;
+  color: white;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: #6f6b7a;
+}
