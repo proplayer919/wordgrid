@@ -25,8 +25,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="manifest" href="/site.webmanifest">
 
-    <!-- FontAwesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
   </head>
 
   <body>
@@ -43,7 +42,7 @@
           <div class="board-info">
             <div class="info-row">
               <span class="icon" aria-hidden="true">
-                <i class="fa-solid fa-hashtag" aria-hidden="true"></i>
+                <img src="img/zoom-check.svg" alt="" aria-hidden="true">
               </span>
               <span id="boardHash" class="value">------</span>
             </div>
@@ -59,45 +58,45 @@
             <!-- Countdown (visible in Daily mode) -->
             <div class="info-row" id="countdownRow" style="display:none;">
               <span class="icon" aria-hidden="true">
-                <i class="fa-solid fa-clock" aria-hidden="true"></i>
+                <img src="img/clock-hour-4.svg" alt="" aria-hidden="true">
               </span>
               <span id="countdown" class="value">00:00:00</span>
             </div>
 
             <div class="info-row">
               <span class="icon" aria-hidden="true">
-                <i class="fa-solid fa-question" aria-hidden="true"></i>
+                <img src="img/zoom-check.svg" alt="" aria-hidden="true">
               </span>
               <span id="guessesInfo" class="value">0 guesses</span>
             </div>
 
             <div class="info-row">
               <span class="icon" aria-hidden="true">
-                <i class="fa-solid fa-star" aria-hidden="true"></i>
+                <img src="img/star.svg" alt="" aria-hidden="true">
               </span>
               <span id="scoreInfo" class="value">0 / 0</span>
             </div>
 
             <div class="info-row">
               <span class="icon" aria-hidden="true">
-                <i class="fa-solid fa-bolt" aria-hidden="true"></i>
+                <img src="img/bolt.svg" alt="" aria-hidden="true">
               </span>
               <span id="difficultyValue" class="value">Normal Mode</span>
             </div>
 
             <button id="rerollBtn" class="reroll" title="Reroll board">
               <span class="rotate" aria-hidden="true">
-                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                <img src="img/reload.svg" alt="" aria-hidden="true">
               </span>
               Reroll
             </button>
             <div class="dock">
               <div id="settingsBtn">
-                <span aria-hidden="true"><i class="fa-solid fa-gear"></i></span>
+                <span aria-hidden="true"><img src="img/settings.svg" alt=""></span>
                 <span class="sr-only">Settings</span>
               </div>
               <div id="leaderboardBtn">
-                <span aria-hidden="true"><i class="fa-solid fa-history"></i></span>
+                <span aria-hidden="true"><img src="img/history.svg" alt=""></span>
                 <span class="sr-only">History</span>
               </div>
             </div>
@@ -110,7 +109,7 @@
     <div id="cellModal" class="modal hidden" aria-hidden="true">
       <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <button id="modalClose" class="modal-close" aria-label="Close">
-          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          ×
         </button>
         <div class="modal-header" id="modalTitle">
           <div id="modalHeaderText"></div>
@@ -130,7 +129,7 @@
     <div id="settingsModal" class="modal hidden" aria-hidden="true">
       <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <button id="settingsClose" class="modal-close" aria-label="Close">
-          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          ×
         </button>
         <div class="modal-header" id="settingsTitle">Settings</div>
         <div class="modal-body" id="settingsBody">

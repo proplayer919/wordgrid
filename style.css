@@ -271,12 +271,18 @@ aside#sidebar {
 
 .info-row .icon {
   width: 28px;
-  height: 28;
+  height: 28px;
   border-radius: 6px;
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.info-row .icon img {
+  width: 20px;
+  height: 20px;
+  display: inline-block;
 }
 
 .info-row .icon i {
@@ -319,6 +325,11 @@ aside#sidebar {
   font-weight: 600;
 }
 
+.dock img {
+  width: 14px;
+  height: 14px;
+}
+
 .dock i {
   font-size: 14px;
 }
@@ -338,6 +349,11 @@ aside#sidebar {
 .reroll[disabled] {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.reroll .rotate img {
+  width: 14px;
+  height: 14px;
 }
 
 .reroll .rotate i {
@@ -382,7 +398,8 @@ aside#sidebar {
   border: none;
   background: transparent;
   color: var(--muted);
-  font-size: 16px;
+  font-size: 24px;
+  line-height: 1;
   cursor: pointer;
 }
 
