@@ -4,6 +4,9 @@ let WORDS = [];
 // Local storage keys
 const DIFFICULTY_KEY = 'wordgrid:difficulty';
 
+// API base URL
+const API_URL = 'http://localhost:5000'; // adjust as needed for deployment
+
 // Attempt to load words from URL. Try a gzipped version first, then fall back to plaintext.
 async function loadWordlist() {
   try {
@@ -161,6 +164,11 @@ const dom = {
   settingsModal: document.getElementById("settingsModal"),
   settingsClose: document.getElementById("settingsClose"),
   resetBoardBtn: document.getElementById("resetBoardBtn"),
+  leaderboardBtn: document.getElementById("leaderboardBtn"),
+  leaderboardModal: document.getElementById("leaderboardModal"),
+  leaderboardClose: document.getElementById("leaderboardClose"),
+  leaderboardList: document.getElementById("leaderboardList"),
+  leaderboardMessage: document.getElementById("leaderboardMessage"),
 
   // modes
   modeDaily: document.getElementById("modeDaily"),
@@ -716,6 +724,121 @@ function showConfirm(message) {
   });
 }
 
+// Prompt with a single-line input and OK/Cancel. Returns string or null.
+function showInputPrompt(promptText, defaultValue = '') {
+  return new Promise((resolve) => {
+    const mm = dom.messageModal;
+    const txt = dom.messageText;
+    const controls = dom.messageControls;
+    txt.innerHTML = `<div style="margin-bottom:8px;">${promptText}</div><input id="msgInput" value="${String(defaultValue).replace(/"/g, '&quot;')}" />`;
+    controls.innerHTML = '<button id="msgOk">OK</button><button id="msgCancel" class="secondary">Cancel</button>';
+    mm.classList.remove('hidden');
+    mm.setAttribute('aria-hidden', 'false');
+    const ok = document.getElementById('msgOk');
+    const cancel = document.getElementById('msgCancel');
+    const input = document.getElementById('msgInput');
+    input.focus();
+    input.select();
+    ok.addEventListener('click', () => {
+      const v = input.value.trim();
+      mm.classList.add('hidden');
+      mm.setAttribute('aria-hidden', 'true');
+      resolve(v || null);
+    }, { once: true });
+    cancel.addEventListener('click', () => {
+      mm.classList.add('hidden');
+      mm.setAttribute('aria-hidden', 'true');
+      resolve(null);
+    }, { once: true });
+  });
+}
+
+// Open the leaderboard modal. For daily mode fetch today's leaderboard; for infinite show a message.
+async function openLeaderboardModal() {
+  if (!dom.leaderboardModal) return;
+  dom.leaderboardMessage.style.display = 'none';
+  dom.leaderboardList.innerHTML = '';
+  dom.leaderboardModal.classList.remove('hidden');
+  dom.leaderboardModal.setAttribute('aria-hidden', 'false');
+
+  if (currentMode === 'infinite') {
+    dom.leaderboardMessage.textContent = "Leaderboards aren't available for Infinite mode. Play Daily instead!";
+    dom.leaderboardMessage.style.display = 'block';
+    return;
+  }
+
+  const dateStr = currentBoardId || getTodayDateStr();
+  dom.leaderboardMessage.textContent = 'Loading...';
+  dom.leaderboardMessage.style.display = 'block';
+  try {
+    const entries = await fetchLeaderboardForDate(dateStr);
+    dom.leaderboardMessage.style.display = 'none';
+    renderLeaderboard(entries);
+  } catch (e) {
+    dom.leaderboardMessage.textContent = 'Could not load leaderboard.';
+    dom.leaderboardMessage.style.display = 'block';
+    console.error('Leaderboard fetch error', e);
+  }
+}
+
+function closeLeaderboardModal() {
+  if (!dom.leaderboardModal) return;
+  dom.leaderboardModal.classList.add('hidden');
+  dom.leaderboardModal.setAttribute('aria-hidden', 'true');
+}
+
+async function fetchLeaderboardForDate(dateStr) {
+  const resp = await fetch(`${API_URL}/leaderboard/${encodeURIComponent(dateStr)}`, { cache: 'no-store' });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const arr = await resp.json();
+  // server sorts ascending; sort descending by score
+  const sorted = Array.isArray(arr) ? arr.slice().sort((a, b) => b.score - a.score) : [];
+  return sorted.slice(0, 10);
+}
+
+function renderLeaderboard(entries) {
+  dom.leaderboardList.innerHTML = '';
+  if (!entries || entries.length === 0) {
+    dom.leaderboardList.innerHTML = '<li class="muted">No entries yet.</li>';
+    return;
+  }
+  entries.forEach((e, idx) => {
+    const li = document.createElement('li');
+    li.className = (idx === 0) ? 'top' : '';
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = `${idx + 1}. ${e.name}`;
+    const scoreEl = document.createElement('div');
+    scoreEl.className = 'score';
+    scoreEl.textContent = `${e.score} / ${maxScore}`;
+    li.appendChild(name);
+    li.appendChild(scoreEl);
+    dom.leaderboardList.appendChild(li);
+  });
+}
+
+async function submitLeaderboardEntry(name, scoreVal, dateStr) {
+  try {
+    const payload = { name: String(name).slice(0, 50), score: Math.round(Number(scoreVal) || 0), date: dateStr };
+    const resp = await fetch(`${API_URL}/leaderboard`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(txt || `HTTP ${resp.status}`);
+    }
+    await showAlert('Score submitted!');
+    // refresh leaderboard display
+    const entries = await fetchLeaderboardForDate(dateStr);
+    renderLeaderboard(entries);
+  } catch (e) {
+    console.error('Submit error', e);
+    await showAlert('Could not submit score. Try again later.');
+  }
+}
+
 // submit a guess for the modal's target cell
 async function submitGuessForModal() {
   if (!modalTarget) return;
@@ -912,9 +1035,28 @@ function checkBoardComplete() {
     const bonus = Math.round(500);
     score += bonus;
     updateStatus();
-    setTimeout(() => showAlert(`Board complete! Bonus ${bonus} points awarded. Final score: ${score}`), 80);
-    // persist final daily result
-    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+    setTimeout(async () => {
+      await showAlert(`Board complete! Bonus ${bonus} points awarded. Final score: ${score}`);
+      // persist final daily result
+      if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+      // Offer submission to leaderboard for daily mode
+      if (currentMode === 'daily') {
+        const wants = await showConfirm('Submit your score to the leaderboard?');
+        if (wants) {
+          const defaultName = localStorage.getItem('wordgrid:playerName') || '';
+          const name = await showInputPrompt('Enter a name to display on the leaderboard', defaultName);
+          if (name) {
+            try {
+              // persist a local convenience name for next time
+              try { localStorage.setItem('wordgrid:playerName', name); } catch (e) { }
+              await submitLeaderboardEntry(name, score, currentBoardId || getTodayDateStr());
+            } catch (e) {
+              console.error('Leaderboard submit failed', e);
+            }
+          }
+        }
+      }
+    }, 80);
   }
 }
 
@@ -966,6 +1108,10 @@ if (dom.resetBoardBtn) dom.resetBoardBtn.addEventListener('click', async () => {
   const ok = await showConfirm('Reset the board? This will clear all progress (guesses and scores) but keep the current board. Continue?');
   if (ok) await clearBoard();
 });
+// Leaderboard dock button
+if (dom.leaderboardBtn) dom.leaderboardBtn.addEventListener('click', () => openLeaderboardModal());
+if (dom.leaderboardClose) dom.leaderboardClose.addEventListener('click', closeLeaderboardModal);
+if (dom.leaderboardModal) dom.leaderboardModal.addEventListener('click', (ev) => { if (ev.target === dom.leaderboardModal) closeLeaderboardModal(); });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closeModal();

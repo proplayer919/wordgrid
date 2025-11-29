@@ -98,7 +98,11 @@
               </div>
               <div id="resetBoardBtn">
                 <span aria-hidden="true"><i class="fa-solid fa-history"></i></span>
-                <span class="sr-only">History</span>
+                <span class="sr-only">Reset Board</span>
+              </div>
+              <div id="leaderboardBtn">
+                <span aria-hidden="true"><i class="fa-solid fa-trophy"></i></span>
+                <span class="sr-only">Leaderboard</span>
               </div>
             </div>
           </div>
@@ -126,7 +130,7 @@
       </div>
     </div>
 
-    <!-- Settings modal (empty for now) -->
+    <!-- Settings modal -->
     <div id="settingsModal" class="modal hidden" aria-hidden="true">
       <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <button id="settingsClose" class="modal-close" aria-label="Close">
@@ -161,6 +165,20 @@
         <div class="modal-body" id="messageText"></div>
         <div class="modal-controls" id="messageControls">
           <!-- buttons are injected dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard modal -->
+    <div id="leaderboardModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="leaderboardTitle">
+        <button id="leaderboardClose" class="modal-close" aria-label="Close">
+          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+        <div class="modal-header" id="leaderboardTitle">Daily Leaderboard</div>
+        <div class="modal-body">
+          <div id="leaderboardMessage" class="muted" style="display:none;">Loading...</div>
+          <ul id="leaderboardList" class="leaderboard-list"></ul>
         </div>
       </div>
     </div>
