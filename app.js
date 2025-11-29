@@ -726,6 +726,11 @@ async function submitGuessForModal() {
   if (board.answers[r][c]) used.delete(normalize(board.answers[r][c]));
   const isDuplicate = used.has(guessNorm);
 
+  // category checks: ensure the guessed word satisfies both the row and column headers
+  const rowTestResult = board.rows[r] && board.rows[r].test ? board.rows[r].test : (() => true);
+  const colTestResult = board.cols[c] && board.cols[c].test ? board.cols[c].test : (() => true);
+  const meetsCategory = matchedWord ? (rowTestResult(matchedWord) && colTestResult(matchedWord)) : false;
+
   const HARD_PENALTY = 50; // points deducted on hard mode for invalid attempts
 
   // Behavior by difficulty
@@ -738,6 +743,16 @@ async function submitGuessForModal() {
       if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
       updateStatus();
       await showAlert("That word is not in the word list.");
+      return;
+    }
+    // Also reject words that exist but do not satisfy the row/column categories
+    if (!meetsCategory) {
+      attempt.valid = false;
+      attempt.reason = 'category_mismatch';
+      guesses.push(attempt);
+      if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+      updateStatus();
+      await showAlert("That word doesn't satisfy the row and column conditions.");
       return;
     }
     if (isDuplicate) {
@@ -771,6 +786,24 @@ async function submitGuessForModal() {
     return;
   }
 
+  // Expert: also eliminate if the word exists but does not meet the category tests
+  if (difficulty === 'expert' && matchedWord && !meetsCategory) {
+    attempt.valid = false;
+    attempt.reason = 'category_mismatch';
+    guesses.push(attempt);
+    if (!board.eliminated) board.eliminated = Array.from({ length: 3 }, () => Array(3).fill(false));
+    board.revealed[r][c] = true;
+    board.eliminated[r][c] = true;
+    if (!board.scores) board.scores = Array.from({ length: 3 }, () => Array(3).fill(null));
+    board.scores[r][c] = 0;
+    renderGrid();
+    closeModal();
+    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+    updateStatus();
+    await showAlert('Cell eliminated: word does not meet the row/column conditions.');
+    return;
+  }
+
   // Hard mode: incorrect words are rejected (same message as normal) but still apply a penalty.
   if (difficulty === 'hard' && !matchedWord) {
     attempt.valid = false;
@@ -781,6 +814,18 @@ async function submitGuessForModal() {
     if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
     updateStatus();
     await showAlert("That word is not in the word list.");
+    return;
+  }
+
+  // Hard mode: words that exist but don't satisfy the category are rejected and penalized
+  if (difficulty === 'hard' && matchedWord && !meetsCategory) {
+    attempt.valid = false;
+    attempt.reason = 'category_mismatch';
+    guesses.push(attempt);
+    score -= HARD_PENALTY;
+    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+    updateStatus();
+    await showAlert("That word doesn't satisfy the row and column conditions.");
     return;
   }
 
