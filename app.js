@@ -160,6 +160,7 @@ const dom = {
   settingsBtn: document.getElementById("settingsBtn"),
   settingsModal: document.getElementById("settingsModal"),
   settingsClose: document.getElementById("settingsClose"),
+  resetBoardBtn: document.getElementById("resetBoardBtn"),
 
   // modes
   modeDaily: document.getElementById("modeDaily"),
@@ -960,6 +961,11 @@ dom.cellModal.addEventListener("click", (ev) => {
 if (dom.settingsBtn) dom.settingsBtn.addEventListener('click', openSettingsModal);
 if (dom.settingsClose) dom.settingsClose.addEventListener('click', closeSettingsModal);
 if (dom.settingsModal) dom.settingsModal.addEventListener('click', (ev) => { if (ev.target === dom.settingsModal) closeSettingsModal(); });
+// History / leaderboard button: repurposed to reset the board (clear progress)
+if (dom.resetBoardBtn) dom.resetBoardBtn.addEventListener('click', async () => {
+  const ok = await showConfirm('Reset the board? This will clear all progress (guesses and scores) but keep the current board. Continue?');
+  if (ok) await clearBoard();
+});
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closeModal();
