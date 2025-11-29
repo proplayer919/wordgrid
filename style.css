@@ -410,6 +410,41 @@ aside#sidebar {
   color: #fff;
 }
 
+/* Leaderboard list */
+.leaderboard-list {
+  list-style: none;
+  margin: 8px 0 0 0;
+  padding: 0;
+  max-height: 320px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.leaderboard-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  font-weight: 600;
+}
+
+.leaderboard-list li .name {
+  color: #e7e9ef;
+}
+
+.leaderboard-list li .score {
+  color: var(--muted);
+  font-family: monospace;
+}
+
+.leaderboard-list li.top {
+  background: linear-gradient(90deg, rgba(125, 113, 255, 0.18), rgba(125, 113, 255, 0.06));
+}
+
 .modal-controls {
   display: flex;
   gap: 8px;
