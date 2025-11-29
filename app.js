@@ -440,6 +440,14 @@ function loadDailyState(dateStr) {
   }
 }
 
+function deleteDailyState(dateStr) {
+  try {
+    localStorage.removeItem(dailyStorageKey(dateStr));
+  } catch (e) {
+    console.warn('Could not delete daily state', e);
+  }
+}
+
 // Build the deterministic daily board for a given local date string (YYYY-MM-DD)
 function generateDailyBoardForDate(dateStr) {
   const seed = strToSeed(dateStr);
@@ -650,6 +658,16 @@ document.addEventListener('click', async (ev) => {
   // user confirmed: apply difficulty, persist, and clear the board (do not reroll)
   setDifficulty(m, true);
   await clearBoard();
+  // If we're currently in infinite mode, also clear any saved daily progress
+  // so changing difficulty resets the persisted daily board as well.
+  if (currentMode === 'infinite') {
+    try {
+      const dateStr = currentBoardId || getTodayDateStr();
+      deleteDailyState(dateStr);
+    } catch (e) {
+      console.warn('Error clearing saved daily board after difficulty change', e);
+    }
+  }
 });
 
 // Custom message / confirm dialogs (replace alert/confirm)
