@@ -3,6 +3,7 @@ let WORDS = [];
 
 // Local storage keys
 const DIFFICULTY_KEY = 'wordgrid:difficulty';
+const INFINITE_BOARD_KEY = 'wordgrid:infinite:current';
 
 // API base URL
 const API_URL = 'https://wordgrid-api.proplayer919.dev:7000'; // adjust as needed for deployment
@@ -342,8 +343,11 @@ async function computeBoardHashAndUpdateUI() {
     // board id for daily mode should be the local date
     dom.boardHash.textContent = currentBoardId || getTodayDateStr();
   } else {
-    dom.boardHash.textContent = h.slice(0, 6);
-    currentBoardId = h.slice(0, 6);
+    // For infinite mode, use existing boardId if present (restored from save), otherwise compute new one
+    if (!currentBoardId) {
+      currentBoardId = h.slice(0, 6);
+    }
+    dom.boardHash.textContent = currentBoardId;
   }
   computeMaxScore();
   updateSidebar();
@@ -454,6 +458,60 @@ function deleteDailyState(dateStr) {
     localStorage.removeItem(dailyStorageKey(dateStr));
   } catch (e) {
     console.warn('Could not delete daily state', e);
+  }
+}
+
+// Infinite board storage functions
+function saveInfiniteState() {
+  try {
+    const payload = {
+      board: {
+        rows: board.rows.map((r) => r.id),
+        cols: board.cols.map((c) => c.id),
+        answers: board.answers,
+      },
+      revealed: board.revealed,
+      scores: board.scores,
+      eliminated: board.eliminated,
+      guessesUsed,
+      guesses,
+      score,
+      maxScore,
+      boardId: currentBoardId,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(INFINITE_BOARD_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn('Could not save infinite state', e);
+  }
+}
+
+function loadInfiniteState() {
+  try {
+    const raw = localStorage.getItem(INFINITE_BOARD_KEY);
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    return payload;
+  } catch (e) {
+    console.warn('Could not load infinite state', e);
+    return null;
+  }
+}
+
+function deleteInfiniteState() {
+  try {
+    localStorage.removeItem(INFINITE_BOARD_KEY);
+  } catch (e) {
+    console.warn('Could not delete infinite state', e);
+  }
+}
+
+// Helper to save state for current mode
+function saveCurrentState() {
+  if (currentMode === 'daily') {
+    saveDailyState(currentBoardId || getTodayDateStr());
+  } else if (currentMode === 'infinite') {
+    saveInfiniteState();
   }
 }
 
@@ -642,8 +700,8 @@ async function clearBoard() {
   guessesUsed = 0;
   guesses = [];
   score = 0;
-  // persist if daily
-  if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+  // persist state
+  saveCurrentState();
   renderGrid();
   updateStatus();
 }
@@ -881,7 +939,7 @@ async function submitGuessForModal() {
       attempt.valid = false;
       attempt.reason = 'not_in_wordlist';
       guesses.push(attempt);
-      if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+      saveCurrentState();
       updateStatus();
       await showAlert("That word is not in the word list.");
       return;
@@ -891,7 +949,7 @@ async function submitGuessForModal() {
       attempt.valid = false;
       attempt.reason = 'category_mismatch';
       guesses.push(attempt);
-      if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+      saveCurrentState();
       updateStatus();
       await showAlert("That word doesn't satisfy the row and column conditions.");
       return;
@@ -900,7 +958,7 @@ async function submitGuessForModal() {
       attempt.valid = false;
       attempt.reason = 'duplicate';
       guesses.push(attempt);
-      if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+      saveCurrentState();
       updateStatus();
       await showAlert(`That word is already used in another cell.`);
       return;
@@ -921,7 +979,7 @@ async function submitGuessForModal() {
     board.scores[r][c] = 0;
     renderGrid();
     closeModal();
-    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+    saveCurrentState();
     updateStatus();
     await showAlert('Cell eliminated due to incorrect or duplicate guess.');
     return;
@@ -939,7 +997,7 @@ async function submitGuessForModal() {
     board.scores[r][c] = 0;
     renderGrid();
     closeModal();
-    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+    saveCurrentState();
     updateStatus();
     await showAlert('Cell eliminated: word does not meet the row/column conditions.');
     return;
@@ -952,7 +1010,7 @@ async function submitGuessForModal() {
     guesses.push(attempt);
     // apply penalty even though the guess is rejected
     score -= HARD_PENALTY;
-    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+    saveCurrentState();
     updateStatus();
     await showAlert("That word is not in the word list.");
     return;
@@ -964,7 +1022,7 @@ async function submitGuessForModal() {
     attempt.reason = 'category_mismatch';
     guesses.push(attempt);
     score -= HARD_PENALTY;
-    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+    saveCurrentState();
     updateStatus();
     await showAlert("That word doesn't satisfy the row and column conditions.");
     return;
@@ -977,7 +1035,7 @@ async function submitGuessForModal() {
     guesses.push(attempt);
     // apply penalty even though the guess is rejected
     score -= HARD_PENALTY;
-    if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+    saveCurrentState();
     updateStatus();
     await showAlert(`That word is already used in another cell.`);
     return;
@@ -1006,9 +1064,7 @@ async function submitGuessForModal() {
   renderGrid();
   closeModal();
   updateStatus();
-  if (currentMode === 'daily') {
-    saveDailyState(currentBoardId || getTodayDateStr());
-  }
+  saveCurrentState();
   checkBoardComplete();
 }
 
@@ -1037,8 +1093,13 @@ function checkBoardComplete() {
     updateStatus();
     setTimeout(async () => {
       await showAlert(`Board complete! Bonus ${bonus} points awarded. Final score: ${score}`);
-      // persist final daily result
-      if (currentMode === 'daily') saveDailyState(currentBoardId || getTodayDateStr());
+      // persist final result and clear infinite state when complete
+      if (currentMode === 'daily') {
+        saveDailyState(currentBoardId || getTodayDateStr());
+      } else if (currentMode === 'infinite') {
+        // Clear saved infinite state since board is completed
+        deleteInfiniteState();
+      }
       // Offer submission to leaderboard for daily mode
       if (currentMode === 'daily') {
         const wants = await showConfirm('Submit your score to the leaderboard?');
@@ -1070,6 +1131,11 @@ function newBoard() {
   guessesUsed = 0;
   guesses = [];
   score = 0;
+  // Clear any saved infinite state when creating a new board
+  if (currentMode === 'infinite') {
+    deleteInfiniteState();
+    currentBoardId = null; // Clear board ID so a new hash is computed
+  }
   renderGrid();
   updateStatus();
 }
@@ -1136,6 +1202,15 @@ if (dom.modalInput) {
   });
 }
 
+// Helper to check if the board has partial progress (any cells revealed)
+function hasPartialProgress() {
+  if (!board.revealed || board.revealed.length === 0) return false;
+  const revealedCount = board.revealed.flat().filter(Boolean).length;
+  // Board is always 3x3 in this game
+  const totalCells = 9;
+  return revealedCount > 0 && revealedCount < totalCells;
+}
+
 function setMode(mode) {
   if (mode !== 'daily' && mode !== 'infinite') return;
   currentMode = mode;
@@ -1170,14 +1245,67 @@ function setMode(mode) {
   } else {
     // infinite
     stopCountdown();
-    newBoard();
-    renderGrid();
-    updateStatus();
+    // Try to load saved infinite board state
+    const saved = loadInfiniteState();
+    if (saved && saved.board) {
+      // Restore the saved board
+      try {
+        const rows = saved.board.rows.map((id) => CATEGORIES.find((c) => c.id === id));
+        const cols = saved.board.cols.map((id) => CATEGORIES.find((c) => c.id === id));
+        // Validate that all categories were found
+        if (rows.some((r) => !r) || cols.some((c) => !c)) {
+          const missingRows = saved.board.rows.filter((id) => !CATEGORIES.find((c) => c.id === id));
+          const missingCols = saved.board.cols.filter((id) => !CATEGORIES.find((c) => c.id === id));
+          throw new Error(`Missing categories - rows: [${missingRows.join(', ')}], cols: [${missingCols.join(', ')}]`);
+        }
+        board.rows = rows;
+        board.cols = cols;
+        board.answers = saved.board.answers;
+        board.revealed = saved.revealed || Array.from({ length: 3 }, () => Array(3).fill(false));
+        board.scores = saved.scores || Array.from({ length: 3 }, () => Array(3).fill(null));
+        board.eliminated = saved.eliminated || Array.from({ length: 3 }, () => Array(3).fill(false));
+        guessesUsed = saved.guessesUsed || 0;
+        guesses = saved.guesses || [];
+        score = saved.score || 0;
+        maxScore = saved.maxScore || 0;
+        currentBoardId = saved.boardId;
+        computeBoardHashAndUpdateUI();
+        renderGrid();
+        updateStatus();
+      } catch (e) {
+        console.warn('Could not restore saved infinite board, generating new one', e);
+        newBoard();
+        renderGrid();
+        updateStatus();
+      }
+    } else {
+      // No saved board, create a new one
+      newBoard();
+      renderGrid();
+      updateStatus();
+    }
   }
 }
 
-if (dom.modeDaily) dom.modeDaily.addEventListener('click', () => setMode('daily'));
+if (dom.modeDaily) dom.modeDaily.addEventListener('click', async () => {
+  // If switching from infinite to daily with partial progress, confirm to make sure it's intentional
+  if (currentMode === 'infinite' && hasPartialProgress()) {
+    const ok = await showConfirm('Switch to Daily mode? Your Infinite board progress will be saved and you can resume it later.');
+    if (!ok) return;
+  }
+  setMode('daily');
+});
 if (dom.modeInfinite) dom.modeInfinite.addEventListener('click', () => setMode('infinite'));
+
+// Beforeunload handler to warn when leaving page with partial progress in infinite mode
+function handleBeforeUnload(e) {
+  if (currentMode === 'infinite' && hasPartialProgress()) {
+    e.preventDefault();
+    // Modern browsers ignore custom messages for security reasons and show a generic message
+    e.returnValue = ''; // Required for Chrome
+    return ''; // For legacy browsers
+  }
+}
 
 // Init
 (async function init() {
@@ -1195,4 +1323,7 @@ if (dom.modeInfinite) dom.modeInfinite.addEventListener('click', () => setMode('
   }
   // initialize according to saved mode
   setMode(currentMode || 'infinite');
+  
+  // Add beforeunload handler
+  window.addEventListener('beforeunload', handleBeforeUnload);
 })();
