@@ -1202,15 +1202,6 @@ if (dom.modalInput) {
   });
 }
 
-// Helper to check if the board has partial progress (any cells revealed)
-function hasPartialProgress() {
-  if (!board.revealed || board.revealed.length === 0) return false;
-  const revealedCount = board.revealed.flat().filter(Boolean).length;
-  // Board is always 3x3 in this game
-  const totalCells = 9;
-  return revealedCount > 0 && revealedCount < totalCells;
-}
-
 function setMode(mode) {
   if (mode !== 'daily' && mode !== 'infinite') return;
   currentMode = mode;
