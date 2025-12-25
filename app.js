@@ -111,7 +111,7 @@ const CATEGORIES = [
   { id: "has_k", label: "Contains 'k'", test: (w) => /k/i.test(w) },
 
   // Phonetic / pattern based
-  { id: "double_vowel", label: "Double vowel (ea, oo, etc.)", test: (w) => /(aa|ee|ii|oo|uu|ea|ie|ou|oa|ui)/i.test(w) },
+  { id: "double_vowel", label: "Double vowel (ea, oo, etc.)", test: (w) => /(aa|ee|ii|oo|uu|ea|ie|ou|oa|ui|ae)/i.test(w) },
   { id: "consonant_heavy", label: "Fewer than 2 vowels", test: (w) => (w.match(/[aeiou]/gi) || []).length < 2 },
   { id: "palindrome", label: "Palindrome", test: (w) => { const s = w.toLowerCase().replace(/[^a-z]/g, ''); return s.length > 1 && s === s.split('').reverse().join(''); } },
 
@@ -210,6 +210,22 @@ function shuffle(arr, rng) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
+}
+
+// shallow-clone a 3x3 grid so we don't share references
+function cloneGrid(grid) {
+  if (!Array.isArray(grid)) return Array.from({ length: 3 }, () => Array(3).fill(null));
+  return grid.map((row = []) => row.slice());
+}
+
+// escape strings before injecting into HTML
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // simple string -> 32-bit integer hash (deterministic)
@@ -331,10 +347,12 @@ function buildBoard(rng) {
     }
 
     if (possible) {
+      const solutions = cloneGrid(answers);
       board.rows = rows;
       board.cols = cols;
-      board.answers = answers;
-      board.best = answers;
+      board.best = solutions;
+      // user-submitted answers start empty; best solutions stay in board.best
+      board.answers = Array.from({ length: 3 }, () => Array(3).fill(null));
       board.revealed = Array.from({ length: 3 }, () => Array(3).fill(false));
       board.scores = Array.from({ length: 3 }, () => Array(3).fill(null));
       board.eliminated = Array.from({ length: 3 }, () => Array(3).fill(false));
@@ -346,7 +364,8 @@ function buildBoard(rng) {
 }
 
 async function computeBoardHashAndUpdateUI() {
-  const flat = board.answers.flat().join("|");
+  const gridForHash = (board.best && board.best.flat) ? board.best : (board.answers && board.answers.flat ? board.answers : []);
+  const flat = gridForHash.flat().join("|");
   const h = await sha256hex(flat);
   if (currentMode === 'daily') {
     // board id for daily mode should be the local date
@@ -367,7 +386,8 @@ function computeMaxScore() {
   let total = 0;
   for (let r = 0; r < 3; r++) {
     for (let c = 0; c < 3; c++) {
-      total += wordRarityScore(board.best[r][c]);
+      const bestWord = board.best && board.best[r] ? board.best[r][c] : null;
+      if (bestWord) total += wordRarityScore(bestWord);
     }
   }
   maxScore = total + 500; // + completion bonus
@@ -533,8 +553,9 @@ function generateDailyBoardForDate(dateStr) {
       const cols = saved.board.cols.map((id) => CATEGORIES.find((c) => c.id === id) || { id });
       board.rows = rows;
       board.cols = cols;
-      board.answers = saved.board.answers;
-      board.revealed = saved.revealed;
+      board.best = saved.board.best ? cloneGrid(saved.board.best) : board.best;
+      board.answers = saved.board.answers ? cloneGrid(saved.board.answers) : board.answers;
+      board.revealed = saved.revealed || Array.from({ length: 3 }, () => Array(3).fill(false));
       // restore per-cell scores if present, otherwise initialize empty grid
       board.scores = saved.scores || Array.from({ length: 3 }, () => Array(3).fill(null));
       board.eliminated = saved.eliminated || Array.from({ length: 3 }, () => Array(3).fill(false));
@@ -913,10 +934,11 @@ async function submitGuessForModal() {
       for (let r = 0; r < 3; r++) {
         for (let c = 0; c < 3; c++) {
           board.revealed[r][c] = true;
-
-          let best = board.answers[r][c];
-          let bestScore = wordRarityScore(best);
-
+          const best = (board.best && board.best[r] && board.best[r][c]) ? board.best[r][c] : board.answers[r][c];
+          const bestScore = best ? wordRarityScore(best) : 0;
+          if (!board.answers[r][c] && best) {
+            board.answers[r][c] = best;
+          }
           board.scores[r][c] = bestScore;
           renderGrid();
           closeModal();
@@ -1129,6 +1151,209 @@ function updateSidebar() {
   if (dom.difficultyValue) dom.difficultyValue.textContent = difficulty.charAt(0).toUpperCase() + difficulty.slice(1) + ' Mode';
 }
 
+function buildAnalysisLines() {
+  const lines = [];
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      const rowLabel = board.rows[r] && board.rows[r].label ? board.rows[r].label : `Row ${r + 1}`;
+      const colLabel = board.cols[c] && board.cols[c].label ? board.cols[c].label : `Col ${c + 1}`;
+      const eliminated = board.eliminated && board.eliminated[r] && board.eliminated[r][c];
+      const userWord = board.answers && board.answers[r] ? board.answers[r][c] : null;
+      const bestWord = board.best && board.best[r] ? board.best[r][c] : null;
+      const userScore = (!eliminated && board.scores && board.scores[r] && board.scores[r][c] != null) ? board.scores[r][c] : null;
+      const bestScore = bestWord ? wordRarityScore(bestWord) : null;
+      const matched = userWord && bestWord && String(userWord).toLowerCase() === String(bestWord).toLowerCase();
+      const userText = eliminated ? 'Eliminated' : (userWord || '—');
+      const bestText = bestWord || '—';
+      const summary = `${rowLabel} + ${colLabel}: you ${userText}${(!eliminated && userScore != null) ? ` (+${userScore})` : ''} | best ${bestText}${bestScore != null ? ` (+${bestScore})` : ''}${matched ? ' — matched best' : ''}`;
+      lines.push(summary);
+    }
+  }
+  return lines;
+}
+
+// richer data for the interactive analysis view
+function buildAnalysisEntries() {
+  const entries = [];
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      const rowLabel = board.rows[r] && board.rows[r].label ? board.rows[r].label : `Row ${r + 1}`;
+      const colLabel = board.cols[c] && board.cols[c].label ? board.cols[c].label : `Col ${c + 1}`;
+      const eliminated = !!(board.eliminated && board.eliminated[r] && board.eliminated[r][c]);
+      const userWord = board.answers && board.answers[r] ? board.answers[r][c] : null;
+      const bestWord = board.best && board.best[r] ? board.best[r][c] : null;
+      const userScore = (!eliminated && board.scores && board.scores[r] && board.scores[r][c] != null) ? board.scores[r][c] : null;
+      const bestScore = bestWord ? wordRarityScore(bestWord) : null;
+      const matched = userWord && bestWord && String(userWord).toLowerCase() === String(bestWord).toLowerCase();
+      const gap = (bestScore != null ? bestScore : 0) - (userScore != null ? userScore : 0);
+      entries.push({
+        r,
+        c,
+        rowLabel,
+        colLabel,
+        eliminated,
+        userWord,
+        bestWord,
+        userScore,
+        bestScore,
+        matched,
+        gap,
+      });
+    }
+  }
+
+  // summary slide with overall stats
+  const totalBestScore = entries.reduce((sum, e) => sum + (e.bestScore != null ? e.bestScore : 0), 0);
+  const totalUserScore = entries.reduce((sum, e) => sum + (e.eliminated ? 0 : (e.userScore != null ? e.userScore : 0)), 0);
+  const matchedCount = entries.filter((e) => e.matched).length;
+  const eliminatedCount = entries.filter((e) => e.eliminated).length;
+  const pointsMissed = Math.max(0, totalBestScore - totalUserScore);
+  const percentOfMax = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+  entries.push({
+    type: 'summary',
+    stats: [
+      { label: 'Score', value: `${score} / ${maxScore} (${percentOfMax}%)` },
+      { label: 'Cell points', value: `${totalUserScore} / ${totalBestScore}` },
+      { label: 'Matched cells', value: `${matchedCount} / 9` },
+      { label: 'Eliminated', value: `${eliminatedCount}` },
+      { label: 'Points missed', value: `${pointsMissed}` },
+      { label: 'Guesses used', value: `${guessesUsed}` },
+    ],
+  });
+  return entries;
+}
+
+function showBoardAnalysis() {
+  return new Promise((resolve) => {
+    const mm = dom.messageModal;
+    const txt = dom.messageText;
+    const controls = dom.messageControls;
+    const entries = buildAnalysisEntries();
+    let page = 0;
+
+    txt.innerHTML = `
+      <div class="analysis-title">Board analysis</div>
+      <div class="analysis-panel">
+        <div class="analysis-card" id="analysisCard"></div>
+      </div>
+    `;
+    controls.innerHTML = `
+      <div class="analysis-nav">
+        <button id="analysisPrev" class="secondary">Prev</button>
+        <div class="analysis-nav-status" id="analysisNavStatus"></div>
+        <button id="analysisNext">Next</button>
+      </div>
+      <button id="analysisClose" class="analysis-close">Close</button>
+    `;
+    mm.classList.remove('hidden');
+    mm.setAttribute('aria-hidden', 'false');
+    const prevBtn = document.getElementById('analysisPrev');
+    const nextBtn = document.getElementById('analysisNext');
+    const closeBtn = document.getElementById('analysisClose');
+    const card = document.getElementById('analysisCard');
+    const status = document.getElementById('analysisNavStatus');
+    const nav = controls.querySelector('.analysis-nav');
+
+    const describeStatus = (entry) => {
+      if (entry.type === 'summary') return { text: 'Overview', cls: 'good' };
+      if (entry.eliminated) return { text: 'Eliminated', cls: 'warn' };
+      if (entry.matched) return { text: 'Perfect match', cls: 'good' };
+      if (entry.bestScore != null) {
+        const ratio = (entry.userScore != null ? entry.userScore : 0) / (entry.bestScore || 1);
+        if (ratio >= 0.9) return { text: 'Almost perfect', cls: 'almost' };
+        if (ratio >= 0.6) return { text: 'Close', cls: 'ok' };
+        if (ratio >= 0.3) return { text: 'Needs work', cls: 'warn' };
+        return { text: 'Very bad', cls: 'miss' };
+      }
+      return { text: 'No best word', cls: 'miss' };
+    };
+
+    const renderPage = (direction) => {
+      if (!card) return;
+      const entry = entries[page];
+      const { text: statusText, cls: statusCls } = describeStatus(entry);
+
+      if (entry.type === 'summary') {
+        const statsHtml = (entry.stats || []).map((s) => `<div class="analysis-summary-row"><span>${escapeHtml(s.label)}</span><span>${escapeHtml(s.value)}</span></div>`).join('');
+        card.innerHTML = `
+          <div class="analysis-crumb">${page + 1} / ${entries.length}</div>
+          <div class="analysis-section">
+            <div class="analysis-tags">Overall</div>
+            <div class="analysis-status ${statusCls}">${statusText}</div>
+          </div>
+          <div class="analysis-summary">${statsHtml}</div>
+        `;
+      } else {
+        const gapText = (entry.bestScore != null)
+          ? ((entry.userScore != null ? entry.bestScore - entry.userScore : entry.bestScore) === 0 ? 'No gap' : `${entry.bestScore - (entry.userScore || 0)} pts missed`)
+          : 'N/A';
+        const userLabel = entry.eliminated ? 'Eliminated' : (entry.userWord || '—');
+        const userScoreText = entry.eliminated ? '' : (entry.userScore != null ? `+${entry.userScore}` : 'No score');
+        const bestScoreText = entry.bestScore != null ? `+${entry.bestScore}` : 'N/A';
+
+        card.innerHTML = `
+          <div class="analysis-crumb">${page + 1} / ${entries.length}</div>
+          <div class="analysis-section">
+            <div class="analysis-tags">${escapeHtml(entry.rowLabel)} · ${escapeHtml(entry.colLabel)}</div>
+            <div class="analysis-status ${statusCls}">${statusText}</div>
+          </div>
+          <div class="analysis-grid">
+            <div class="analysis-block user">
+              <div class="label">You</div>
+              <div class="word">${escapeHtml(userLabel)}</div>
+              <div class="score">${escapeHtml(userScoreText)}</div>
+            </div>
+            <div class="analysis-block best">
+              <div class="label">Best</div>
+              <div class="word">${escapeHtml(entry.bestWord || '—')}</div>
+              <div class="score">${escapeHtml(bestScoreText)}</div>
+            </div>
+          </div>
+          <div class="analysis-gap">${escapeHtml(gapText)}</div>
+        `;
+      }
+
+      // animation hint based on direction
+      card.classList.remove('slide-in-left', 'slide-in-right');
+      void card.offsetWidth;
+      if (direction === 'next') card.classList.add('slide-in-right');
+      if (direction === 'prev') card.classList.add('slide-in-left');
+
+      const isSummary = entry.type === 'summary';
+      if (status) status.textContent = `${page + 1} / ${entries.length}`;
+      if (nav) nav.style.display = isSummary ? 'none' : 'flex';
+      prevBtn.disabled = page === 0;
+      nextBtn.disabled = page === entries.length - 1;
+      nextBtn.style.display = isSummary ? 'none' : '';
+      prevBtn.style.display = isSummary ? 'none' : '';
+      if (status) status.style.display = isSummary ? 'none' : '';
+    };
+
+    const goPrev = () => {
+      if (page === 0) return;
+      page -= 1;
+      renderPage('prev');
+    };
+    const goNext = () => {
+      if (page >= entries.length - 1) return;
+      page += 1;
+      renderPage('next');
+    };
+
+    prevBtn.addEventListener('click', goPrev);
+    nextBtn.addEventListener('click', goNext);
+    closeBtn.addEventListener('click', () => {
+      mm.classList.add('hidden');
+      mm.setAttribute('aria-hidden', 'true');
+      resolve();
+    }, { once: true });
+
+    closeBtn.focus();
+    renderPage('init');
+  });
+}
+
 function checkBoardComplete() {
   const all = board.revealed.flat().every(Boolean);
   if (all) {
@@ -1162,6 +1387,10 @@ function checkBoardComplete() {
           }
         }
       }
+      const wantsAnalysis = await showConfirm('See an analysis comparing your answers to the best board?');
+      if (wantsAnalysis) {
+        await showBoardAnalysis();
+      }
     }, 80);
   }
 }
@@ -1187,8 +1416,15 @@ function newBoard() {
 
 // reveal all
 function revealAll() {
-  for (let r = 0; r < 3; r++)
-    for (let c = 0; c < 3; c++) board.revealed[r][c] = true;
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      board.revealed[r][c] = true;
+      const isEliminated = board.eliminated && board.eliminated[r] && board.eliminated[r][c];
+      if (!isEliminated && !board.answers[r][c] && board.best && board.best[r]) {
+        board.answers[r][c] = board.best[r][c];
+      }
+    }
+  }
   renderGrid();
   updateStatus();
 }
@@ -1296,7 +1532,8 @@ function setMode(mode) {
         }
         board.rows = rows;
         board.cols = cols;
-        board.answers = saved.board.answers;
+        board.best = saved.board.best ? cloneGrid(saved.board.best) : Array.from({ length: 3 }, () => Array(3).fill(null));
+        board.answers = saved.board.answers ? cloneGrid(saved.board.answers) : Array.from({ length: 3 }, () => Array(3).fill(null));
         board.revealed = saved.revealed || Array.from({ length: 3 }, () => Array(3).fill(false));
         board.scores = saved.scores || Array.from({ length: 3 }, () => Array(3).fill(null));
         board.eliminated = saved.eliminated || Array.from({ length: 3 }, () => Array(3).fill(false));
