@@ -1202,15 +1202,6 @@ if (dom.modalInput) {
   });
 }
 
-// Helper to check if the board has partial progress (any cells revealed)
-function hasPartialProgress() {
-  if (!board.revealed || board.revealed.length === 0) return false;
-  const revealedCount = board.revealed.flat().filter(Boolean).length;
-  // Board is always 3x3 in this game
-  const totalCells = 9;
-  return revealedCount > 0 && revealedCount < totalCells;
-}
-
 function setMode(mode) {
   if (mode !== 'daily' && mode !== 'infinite') return;
   currentMode = mode;
@@ -1287,25 +1278,10 @@ function setMode(mode) {
   }
 }
 
-if (dom.modeDaily) dom.modeDaily.addEventListener('click', async () => {
-  // If switching from infinite to daily with partial progress, confirm to make sure it's intentional
-  if (currentMode === 'infinite' && hasPartialProgress()) {
-    const ok = await showConfirm('Switch to Daily mode? Your Infinite board progress will be saved and you can resume it later.');
-    if (!ok) return;
-  }
+if (dom.modeDaily) dom.modeDaily.addEventListener('click', () => {
   setMode('daily');
 });
 if (dom.modeInfinite) dom.modeInfinite.addEventListener('click', () => setMode('infinite'));
-
-// Beforeunload handler to warn when leaving page with partial progress in infinite mode
-function handleBeforeUnload(e) {
-  if (currentMode === 'infinite' && hasPartialProgress()) {
-    e.preventDefault();
-    // Modern browsers ignore custom messages for security reasons and show a generic message
-    e.returnValue = ''; // Required for Chrome
-    return ''; // For legacy browsers
-  }
-}
 
 // Init
 (async function init() {
@@ -1323,7 +1299,4 @@ function handleBeforeUnload(e) {
   }
   // initialize according to saved mode
   setMode(currentMode || 'infinite');
-  
-  // Add beforeunload handler
-  window.addEventListener('beforeunload', handleBeforeUnload);
 })();
