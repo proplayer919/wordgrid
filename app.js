@@ -1136,6 +1136,13 @@ if (dom.modalInput) {
   });
 }
 
+// Helper to check if the board has partial progress (any cells revealed)
+function hasPartialProgress() {
+  if (!board.revealed || board.revealed.length === 0) return false;
+  const revealedCount = board.revealed.flat().filter(Boolean).length;
+  return revealedCount > 0 && revealedCount < 9;
+}
+
 function setMode(mode) {
   if (mode !== 'daily' && mode !== 'infinite') return;
   currentMode = mode;
@@ -1176,7 +1183,14 @@ function setMode(mode) {
   }
 }
 
-if (dom.modeDaily) dom.modeDaily.addEventListener('click', () => setMode('daily'));
+if (dom.modeDaily) dom.modeDaily.addEventListener('click', async () => {
+  // If switching from infinite to daily with partial progress, confirm first
+  if (currentMode === 'infinite' && hasPartialProgress()) {
+    const ok = await showConfirm('Switching to Daily mode will reset your current Infinite board. Do you want to continue?');
+    if (!ok) return;
+  }
+  setMode('daily');
+});
 if (dom.modeInfinite) dom.modeInfinite.addEventListener('click', () => setMode('infinite'));
 
 // Init
@@ -1195,4 +1209,13 @@ if (dom.modeInfinite) dom.modeInfinite.addEventListener('click', () => setMode('
   }
   // initialize according to saved mode
   setMode(currentMode || 'infinite');
+  
+  // Add beforeunload handler to warn when leaving page with partial progress in infinite mode
+  window.addEventListener('beforeunload', (e) => {
+    if (currentMode === 'infinite' && hasPartialProgress()) {
+      e.preventDefault();
+      e.returnValue = ''; // Required for Chrome
+      return ''; // For some browsers
+    }
+  });
 })();
