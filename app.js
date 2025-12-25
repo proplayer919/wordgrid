@@ -343,8 +343,11 @@ async function computeBoardHashAndUpdateUI() {
     // board id for daily mode should be the local date
     dom.boardHash.textContent = currentBoardId || getTodayDateStr();
   } else {
-    dom.boardHash.textContent = h.slice(0, 6);
-    currentBoardId = h.slice(0, 6);
+    // For infinite mode, use existing boardId if present (restored from save), otherwise compute new one
+    if (!currentBoardId) {
+      currentBoardId = h.slice(0, 6);
+    }
+    dom.boardHash.textContent = currentBoardId;
   }
   computeMaxScore();
   updateSidebar();
@@ -1131,6 +1134,7 @@ function newBoard() {
   // Clear any saved infinite state when creating a new board
   if (currentMode === 'infinite') {
     deleteInfiniteState();
+    currentBoardId = null; // Clear board ID so a new hash is computed
   }
   renderGrid();
   updateStatus();
@@ -1202,7 +1206,8 @@ if (dom.modalInput) {
 function hasPartialProgress() {
   if (!board.revealed || board.revealed.length === 0) return false;
   const revealedCount = board.revealed.flat().filter(Boolean).length;
-  return revealedCount > 0 && revealedCount < 9;
+  const totalCells = board.revealed.length * (board.revealed[0]?.length || 0);
+  return revealedCount > 0 && revealedCount < totalCells;
 }
 
 function setMode(mode) {
@@ -1244,8 +1249,12 @@ function setMode(mode) {
     if (saved && saved.board) {
       // Restore the saved board
       try {
-        const rows = saved.board.rows.map((id) => CATEGORIES.find((c) => c.id === id) || { id });
-        const cols = saved.board.cols.map((id) => CATEGORIES.find((c) => c.id === id) || { id });
+        const rows = saved.board.rows.map((id) => CATEGORIES.find((c) => c.id === id));
+        const cols = saved.board.cols.map((id) => CATEGORIES.find((c) => c.id === id));
+        // Validate that all categories were found
+        if (rows.some((r) => !r) || cols.some((c) => !c)) {
+          throw new Error('Some categories could not be found');
+        }
         board.rows = rows;
         board.cols = cols;
         board.answers = saved.board.answers;
@@ -1285,6 +1294,15 @@ if (dom.modeDaily) dom.modeDaily.addEventListener('click', async () => {
 });
 if (dom.modeInfinite) dom.modeInfinite.addEventListener('click', () => setMode('infinite'));
 
+// Beforeunload handler to warn when leaving page with partial progress in infinite mode
+function handleBeforeUnload(e) {
+  if (currentMode === 'infinite' && hasPartialProgress()) {
+    e.preventDefault();
+    e.returnValue = ''; // Required for Chrome
+    return ''; // For some browsers
+  }
+}
+
 // Init
 (async function init() {
   await loadWordlist();
@@ -1302,12 +1320,6 @@ if (dom.modeInfinite) dom.modeInfinite.addEventListener('click', () => setMode('
   // initialize according to saved mode
   setMode(currentMode || 'infinite');
   
-  // Add beforeunload handler to warn when leaving page with partial progress in infinite mode
-  window.addEventListener('beforeunload', (e) => {
-    if (currentMode === 'infinite' && hasPartialProgress()) {
-      e.preventDefault();
-      e.returnValue = ''; // Required for Chrome
-      return ''; // For some browsers
-    }
-  });
+  // Add beforeunload handler
+  window.addEventListener('beforeunload', handleBeforeUnload);
 })();
