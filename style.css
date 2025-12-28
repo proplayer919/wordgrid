@@ -763,21 +763,27 @@ button.secondary {
   }
 }
 
-/* Very small / narrow screens: make grid scrollable horizontally if needed */
+/* Very small / narrow screens: reduce size but keep 4x4 grid */
 @media (max-width: 360px) {
   :root {
-    --cell-size: 64px;
+    /* Further reduce cell size to fit on very small screens */
+    --cell-size: min(70px, calc((100vw - 32px) / 4));
   }
 
-  .grid-wrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 6px;
+  body {
+    padding: 8px;
   }
 
   .grid {
-    grid-auto-flow: column;
-    grid-auto-columns: var(--cell-size);
-    grid-template-rows: none;
+    gap: 6px;
+  }
+
+  .cell .word {
+    font-size: 14px;
+    padding: 0 4px;
+  }
+
+  .cell .meta {
+    font-size: 9px;
   }
 }
