@@ -213,6 +213,41 @@ main {
   cursor: default;
 }
 
+.cell.perfect {
+  background: linear-gradient(180deg, #1e8f7b, #114f78);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.cell.perfect .perfect-label {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff9d8;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.cell.perfect .perfect-word {
+  position: relative;
+  z-index: 1;
+  font-size: 15px;
+  color: #ffffff;
+}
+
+.cell.perfect .perfect-firework-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
 /* Sidebar */
 aside#sidebar {
   width: 260px;

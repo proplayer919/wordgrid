@@ -333,6 +333,69 @@ function wordRarityScore(word) {
   return Math.round(s * 10);
 }
 
+function normalizeWordValue(word) {
+  return String(word || '').toLowerCase().replace(/[^a-z]/g, '');
+}
+
+function isPerfectAnswer(answer, bestWord) {
+  return Boolean(answer && bestWord && normalizeWordValue(answer) === normalizeWordValue(bestWord));
+}
+
+function launchPerfectFirework(cell) {
+  const FireworksCtor = globalThis.Fireworks?.default || globalThis.Fireworks;
+  if (!FireworksCtor || !cell) return;
+
+  const existingLayer = cell.querySelector('.perfect-firework-layer');
+  if (existingLayer) existingLayer.remove();
+
+  const layer = document.createElement('div');
+  layer.className = 'perfect-firework-layer';
+  cell.appendChild(layer);
+
+  try {
+    const fireworks = new FireworksCtor(layer, {
+      autoresize: true,
+      opacity: 0.9,
+      acceleration: 1.05,
+      friction: 0.94,
+      gravity: 1.4,
+      particles: 20,
+      traceLength: 2,
+      traceSpeed: 10,
+      explosion: 5,
+      intensity: 18,
+      flickering: 20,
+      lineStyle: 'round',
+      hue: { min: 35, max: 60 },
+      delay: { min: 0, max: 0 },
+      rocketsPoint: { min: 50, max: 50 },
+      lineWidth: {
+        explosion: { min: 1, max: 2 },
+        trace: { min: 1, max: 1 },
+      },
+      brightness: { min: 85, max: 100 },
+      decay: { min: 0.018, max: 0.028 },
+      mouse: { click: false, move: false, max: 1 },
+      sound: { enabled: false },
+    });
+
+    fireworks.start();
+    fireworks.launch(1);
+
+    globalThis.setTimeout(() => {
+      try {
+        fireworks.stop(true);
+      } catch (err) {
+        console.warn('Could not stop perfect firework', err);
+      }
+      layer.remove();
+    }, 900);
+  } catch (err) {
+    console.warn('Could not launch perfect firework', err);
+    layer.remove();
+  }
+}
+
 function pickRankedCandidate(candidates, rng) {
   const ranked = candidates
     .map((w) => ({ w, score: wordRarityScore(w) }))
@@ -700,14 +763,26 @@ function renderGrid() {
           cell.setAttribute('aria-disabled', 'true');
           cell.setAttribute('aria-label', `${rowLabel} + ${colLabel} — eliminated.`);
         } else {
+          const bestWord = board.best?.[r]?.[c] || null;
+          const isPerfect = isPerfectAnswer(board.answers[r][c], bestWord);
           // show the guessed word and the points awarded for that cell (if any)
           const cellScore = (board.scores?.[r]?.[c] == null) ? null : board.scores[r][c];
           const scoreHtml = cellScore == null ? `<div class="cell-score"></div>` : `<div class="cell-score">+${cellScore}</div>`;
-          cell.innerHTML = `<div class="word" style="font-size:${getWordFontSize(board.answers[r][c])}px">${board.answers[r][c]}</div>${scoreHtml}`;
+          if (isPerfect) {
+            cell.classList.add('perfect');
+            cell.innerHTML = `
+              <div class="perfect-label">Perfect</div>
+              <div class="word perfect-word" style="font-size:${getWordFontSize(board.answers[r][c])}px">${board.answers[r][c]}</div>
+              ${scoreHtml}
+            `;
+            cell.setAttribute('aria-label', `${rowLabel} + ${colLabel} — perfect match: ${board.answers[r][c]}. Revealed.`);
+          } else {
+            cell.innerHTML = `<div class="word" style="font-size:${getWordFontSize(board.answers[r][c])}px">${board.answers[r][c]}</div>${scoreHtml}`;
+            cell.setAttribute('aria-label', `${rowLabel} + ${colLabel} — ${board.answers[r][c]}. Revealed.`);
+          }
           // Make revealed cells explicitly unfocusable and non-interactive for accessibility
           cell.tabIndex = -1;
           cell.setAttribute('aria-disabled', 'true');
-          cell.setAttribute('aria-label', `${rowLabel} + ${colLabel} — ${board.answers[r][c]}. Revealed.`);
         }
       } else {
         cell.innerHTML = `<div class="word">?</div>`;
@@ -1125,6 +1200,12 @@ async function submitGuessForModal() {
   board.scores[r][c] = points;
   score += points;
   renderGrid();
+  if (isPerfectAnswer(acceptedWord, board.best?.[r]?.[c])) {
+    requestAnimationFrame(() => {
+      const perfectCell = dom.grid.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+      launchPerfectFirework(perfectCell);
+    });
+  }
   closeModal();
   updateStatus();
   saveCurrentState();
