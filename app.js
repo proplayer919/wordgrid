@@ -2,6 +2,8 @@ let WORDS = [];
 
 const DIFFICULTY_KEY = 'wordgrid:difficulty';
 const INFINITE_BOARD_KEY = 'wordgrid:infinite:current';
+const BOARD_SEED_LENGTH = 8;
+const BOARD_SEED_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
 function dailyStorageKey(dateStr) {
   return `wordgrid:daily:${dateStr}`;
@@ -147,6 +149,7 @@ const dom = {
 
   // info rows
   boardHash: document.getElementById("boardHash"),
+  shareBoardBtn: document.getElementById("shareBoardBtn"),
   guessesInfo: document.getElementById("guessesInfo"),
   scoreInfo: document.getElementById("scoreInfo"),
   difficultyValue: document.getElementById("difficultyValue"),
@@ -211,6 +214,43 @@ function escapeHtml(str) {
     .replaceAll("'", '&#39;');
 }
 
+function normalizeBoardSeed(seed) {
+  return String(seed ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, BOARD_SEED_LENGTH);
+}
+
+function isValidBoardSeed(seed) {
+  return /^[a-z0-9]{8}$/.test(seed);
+}
+
+function generateBoardSeed() {
+  const bytes = new Uint8Array(BOARD_SEED_LENGTH);
+  const chars = [];
+  if (crypto?.getRandomValues) {
+    crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      chars.push(BOARD_SEED_ALPHABET[byte % BOARD_SEED_ALPHABET.length]);
+    }
+  } else {
+    for (let i = 0; i < BOARD_SEED_LENGTH; i++) {
+      chars.push(BOARD_SEED_ALPHABET[Math.floor(Math.random() * BOARD_SEED_ALPHABET.length)]);
+    }
+  }
+  return chars.join('');
+}
+
+function getSeedFromLocationHash() {
+  return normalizeBoardSeed(globalThis.location.hash.replace(/^#/, ''));
+}
+
+function syncLocationHash(seed) {
+  const nextHash = seed ? `#${seed}` : '';
+  if (globalThis.location.hash === nextHash) return;
+  globalThis.history.replaceState(null, '', `${globalThis.location.pathname}${globalThis.location.search}${nextHash}`);
+}
+
 // simple string -> 32-bit integer hash (deterministic)
 function strToSeed(str) {
   let h = 2166136261 >>> 0;
@@ -229,16 +269,6 @@ function mulberry32(a) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-// SHA-256 hex
-async function sha256hex(str) {
-  const enc = new TextEncoder();
-  const buf = enc.encode(str);
-  const hash = await crypto.subtle.digest("SHA-256", buf);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 // Rarity heuristic
@@ -353,23 +383,11 @@ function buildBoard(rng) {
 }
 
 async function computeBoardHashAndUpdateUI() {
-  let gridForHash = [];
-  if (board.best?.flat) {
-    gridForHash = board.best;
-  } else if (board.answers?.flat) {
-    gridForHash = board.answers;
-  }
-  const flat = gridForHash.flat().join("|");
-  const h = await sha256hex(flat);
   if (currentMode === 'daily') {
     // board id for daily mode should be the local date
     dom.boardHash.textContent = currentBoardId || getTodayDateStr();
   } else {
-    // For infinite mode, use existing boardId if present (restored from save), otherwise compute new one
-    if (!currentBoardId) {
-      currentBoardId = h.slice(0, 6);
-    }
-    dom.boardHash.textContent = currentBoardId;
+    dom.boardHash.textContent = currentBoardId || '--------';
   }
   computeMaxScore();
   updateSidebar();
@@ -496,6 +514,69 @@ function saveInfiniteState() {
   } catch (e) {
     console.warn('Could not save infinite state', e);
   }
+}
+
+function getCurrentBoardShareUrl() {
+  const seed = normalizeBoardSeed(currentBoardId);
+  const baseUrl = globalThis.location.href.split('#')[0];
+  return seed ? `${baseUrl}#${seed}` : baseUrl;
+}
+
+function buildInfiniteBoardFromSeed(seed) {
+  const normalizedSeed = normalizeBoardSeed(seed);
+  if (!isValidBoardSeed(normalizedSeed)) return false;
+  const rng = mulberry32(strToSeed(normalizedSeed));
+  const ok = buildBoard(rng);
+  if (!ok) return false;
+  currentBoardId = normalizedSeed;
+  syncLocationHash(normalizedSeed);
+  return true;
+}
+
+async function applyInfiniteSeed(seed, options = {}) {
+  const normalizedSeed = normalizeBoardSeed(seed);
+  if (!isValidBoardSeed(normalizedSeed)) return false;
+
+  const { restoreSaved = true, persist = true } = options;
+  const saved = restoreSaved ? loadInfiniteState() : null;
+
+  const ok = buildInfiniteBoardFromSeed(normalizedSeed);
+  if (!ok) return false;
+
+  guessesUsed = 0;
+  guesses = [];
+  score = 0;
+
+  if (saved?.boardId === normalizedSeed) {
+    try {
+      restoreInfiniteBoard(saved);
+    } catch (e) {
+      console.warn('Could not restore saved infinite board for seed, using fresh board', e);
+    }
+  }
+
+  computeBoardHashAndUpdateUI();
+  renderGrid();
+  updateStatus();
+  if (persist) saveInfiniteState();
+  return true;
+}
+
+function startRandomInfiniteBoard() {
+  for (let attempts = 0; attempts < 100; attempts++) {
+    const seed = generateBoardSeed();
+    if (buildInfiniteBoardFromSeed(seed)) {
+      guessesUsed = 0;
+      guesses = [];
+      score = 0;
+      computeBoardHashAndUpdateUI();
+      renderGrid();
+      updateStatus();
+      saveInfiniteState();
+      return true;
+    }
+  }
+  return false;
 }
 
 function loadInfiniteState() {
@@ -836,19 +917,21 @@ async function submitGuessForModal() {
     if (valRaw.toLowerCase() === '!reveal') {
       for (let r = 0; r < 3; r++) {
         for (let c = 0; c < 3; c++) {
-          board.revealed[r][c] = true;
-          const best = board.best?.[r]?.[c] ? board.best[r][c] : board.answers[r][c];
-          const bestScore = best ? wordRarityScore(best) : 0;
-          if (!board.answers[r][c] && best) {
-            board.answers[r][c] = best;
+          const bestWord = board.best?.[r]?.[c] || board.answers[r][c];
+          if (bestWord) {
+            board.answers[r][c] = bestWord;
+            board.scores[r][c] = wordRarityScore(bestWord);
           }
-          board.scores[r][c] = bestScore;
-          renderGrid();
-          closeModal();
-          updateStatus();
-          saveCurrentState();
+          if (board.eliminated?.[r]) {
+            board.eliminated[r][c] = false;
+          }
+          board.revealed[r][c] = true;
         }
       }
+      renderGrid();
+      closeModal();
+      updateStatus();
+      saveCurrentState();
       return;
     }
 
@@ -1326,6 +1409,13 @@ function checkBoardComplete() {
 
 // new board / reroll
 function newBoard() {
+  if (currentMode === 'infinite') {
+    const ok = startRandomInfiniteBoard();
+    if (!ok) {
+      showAlert("Couldn't build a board with the current wordlist and categories.");
+    }
+    return;
+  }
   const ok = buildBoard();
   if (!ok) {
     showAlert("Couldn't build a board with the current wordlist and categories.");
@@ -1334,11 +1424,6 @@ function newBoard() {
   guessesUsed = 0;
   guesses = [];
   score = 0;
-  // Clear any saved infinite state when creating a new board
-  if (currentMode === 'infinite') {
-    deleteInfiniteState();
-    currentBoardId = null; // Clear board ID so a new hash is computed
-  }
   renderGrid();
   updateStatus();
 }
@@ -1347,11 +1432,15 @@ function newBoard() {
 function revealAll() {
   for (let r = 0; r < 3; r++) {
     for (let c = 0; c < 3; c++) {
-      board.revealed[r][c] = true;
-      const isEliminated = board.eliminated?.[r]?.[c];
-      if (!isEliminated && !board.answers[r][c] && board.best?.[r]) {
-        board.answers[r][c] = board.best[r][c];
+      const bestWord = board.best?.[r]?.[c] || board.answers[r][c];
+      if (bestWord) {
+        board.answers[r][c] = bestWord;
+        board.scores[r][c] = wordRarityScore(bestWord);
       }
+      if (board.eliminated?.[r]) {
+        board.eliminated[r][c] = false;
+      }
+      board.revealed[r][c] = true;
     }
   }
   renderGrid();
@@ -1408,12 +1497,22 @@ if (dom.modalInput) {
   });
 }
 
+globalThis.addEventListener('hashchange', async () => {
+  if (currentMode !== 'infinite') return;
+  const hashSeed = getSeedFromLocationHash();
+  if (!isValidBoardSeed(hashSeed) || hashSeed === currentBoardId) return;
+  await applyInfiniteSeed(hashSeed, { restoreSaved: true, persist: true });
+});
+
+if (dom.shareBoardBtn) dom.shareBoardBtn.addEventListener('click', copyCurrentBoardLink);
+
 function updateModeTabs(mode) {
   if (!dom.modeDaily || !dom.modeInfinite) return;
   dom.modeDaily.classList.toggle('active', mode === 'daily');
   dom.modeInfinite.classList.toggle('active', mode === 'infinite');
   dom.modeDaily.setAttribute('aria-selected', mode === 'daily' ? 'true' : 'false');
   dom.modeInfinite.setAttribute('aria-selected', mode === 'infinite' ? 'true' : 'false');
+  if (dom.shareBoardBtn) dom.shareBoardBtn.hidden = mode !== 'infinite';
 }
 
 function refreshModeView() {
@@ -1457,8 +1556,34 @@ function restoreInfiniteBoard(saved) {
   computeBoardHashAndUpdateUI();
 }
 
-function setInfiniteMode() {
+async function copyCurrentBoardLink() {
+  const seed = normalizeBoardSeed(currentBoardId);
+  if (!isValidBoardSeed(seed)) {
+    await showAlert('No shareable seed is available for this board yet.');
+    return;
+  }
+
+  const url = getCurrentBoardShareUrl();
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+      await showAlert('Share link copied.');
+      return;
+    }
+    await showAlert(`Copy this link: ${url}`);
+  } catch (e) {
+    console.warn('Could not copy share link', e);
+    await showAlert(`Could not copy automatically. Link: ${url}`);
+  }
+}
+
+async function setInfiniteMode() {
   stopCountdown();
+  const hashSeed = getSeedFromLocationHash();
+  if (isValidBoardSeed(hashSeed)) {
+    await applyInfiniteSeed(hashSeed, { restoreSaved: true, persist: true });
+    return;
+  }
   const saved = loadInfiniteState();
   if (saved?.board) {
     try {
@@ -1468,10 +1593,10 @@ function setInfiniteMode() {
       console.warn('Could not restore saved infinite board, generating new one', e);
     }
   }
-  newBoard();
+  startRandomInfiniteBoard();
 }
 
-function setMode(mode) {
+async function setMode(mode) {
   if (mode !== 'daily' && mode !== 'infinite') return;
   currentMode = mode;
   updateModeTabs(mode);
@@ -1479,7 +1604,7 @@ function setMode(mode) {
   if (mode === 'daily') {
     resetDailyBoard(getTodayDateStr());
   } else {
-    setInfiniteMode();
+    await setInfiniteMode();
   }
   refreshModeView();
 }
@@ -1506,5 +1631,9 @@ if (dom.modeInfinite) dom.modeInfinite.addEventListener('click', () => setMode('
     setDifficulty(difficulty, false);
   }
   // initialize according to saved mode
-  setMode(currentMode || 'infinite');
+  const hashSeed = getSeedFromLocationHash();
+  if (isValidBoardSeed(hashSeed)) {
+    currentMode = 'infinite';
+  }
+  await setMode(currentMode || 'infinite');
 })();
