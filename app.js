@@ -1,7 +1,5 @@
-// Word list
 let WORDS = [];
 
-// Local storage keys
 const DIFFICULTY_KEY = 'wordgrid:difficulty';
 const INFINITE_BOARD_KEY = 'wordgrid:infinite:current';
 
@@ -9,22 +7,15 @@ function dailyStorageKey(dateStr) {
   return `wordgrid:daily:${dateStr}`;
 }
 
-// API base URL
-const API_URL = 'https://wordgrid-api.proplayer919.dev:7000';
-
 const CHEAT_CODE = '!opensesame';
 
-// Attempt to load words from URL. Try a gzipped version first, then fall back to plaintext.
 async function loadWordlist() {
   try {
     let txt = null;
 
-    // Try to fetch a gzipped wordlist first (words.txt.gz). This is a small binary
-    // transfer and will be decompressed in the browser using pako.
     try {
       const gzResp = await fetch('words.txt.gz', { cache: 'no-store' });
-      if (gzResp && gzResp.ok) {
-        // get binary data and ungzip
+      if (gzResp?.ok) {
         const buf = await gzResp.arrayBuffer();
         if (typeof pako !== 'undefined' && pako.ungzip) {
           try {
@@ -36,15 +27,13 @@ async function loadWordlist() {
           }
         } else {
           console.warn('pako not available to decompress words.txt.gz; falling back to plain words.txt');
-          txt = null;
         }
       }
     } catch (e) {
-      // network error or not present — fall through to plaintext fetch
       txt = null;
+      console.warn('Failed to fetch words.txt.gz, falling back to plain words.txt', e);
     }
 
-    // If gz fetch/decompress failed, fall back to plain text file
     if (txt === null) {
       const resp = await fetch('words.txt', { cache: 'no-store' });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -52,7 +41,6 @@ async function loadWordlist() {
       console.info('Loaded words.txt (plaintext)');
     }
 
-    // Parse newline-separated entries
     const arr = txt
       .split(/\r?\n/)
       .map((l) => l.trim().toLowerCase())
@@ -173,11 +161,6 @@ const dom = {
   settingsModal: document.getElementById("settingsModal"),
   settingsClose: document.getElementById("settingsClose"),
   resetBoardBtn: document.getElementById("resetBoardBtn"),
-  leaderboardBtn: document.getElementById("leaderboardBtn"),
-  leaderboardModal: document.getElementById("leaderboardModal"),
-  leaderboardClose: document.getElementById("leaderboardClose"),
-  leaderboardList: document.getElementById("leaderboardList"),
-  leaderboardMessage: document.getElementById("leaderboardMessage"),
 
   // modes
   modeDaily: document.getElementById("modeDaily"),
@@ -214,25 +197,25 @@ function shuffle(arr, rng) {
 
 // shallow-clone a 3x3 grid so we don't share references
 function cloneGrid(grid) {
-  if (!Array.isArray(grid)) return Array.from({ length: 3 }, () => Array(3).fill(null));
+  if (!Array.isArray(grid)) return Array.from({ length: 3 }, () => new Array(3).fill(null));
   return grid.map((row = []) => row.slice());
 }
 
 // escape strings before injecting into HTML
 function escapeHtml(str) {
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 // simple string -> 32-bit integer hash (deterministic)
 function strToSeed(str) {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < str.length; i++) {
-    h = Math.imul(h ^ str.charCodeAt(i), 16777619) >>> 0;
+    h = Math.imul(h ^ str.codePointAt(i), 16777619) >>> 0;
   }
   return h >>> 0;
 }
@@ -240,8 +223,8 @@ function strToSeed(str) {
 // mulberry32 PRNG
 function mulberry32(a) {
   return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
+    a = Math.trunc(a);
+    a = Math.trunc(a + 0x6d2b79f5);
     let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -310,15 +293,38 @@ function wordRarityScore(word) {
   return Math.round(s * 10);
 }
 
+function pickRankedCandidate(candidates, rng) {
+  const ranked = candidates
+    .map((w) => ({ w, score: wordRarityScore(w) }))
+    .sort((a, b) => b.score - a.score);
+
+  if (ranked.length > 3) {
+    const idx = rng ? Math.floor(rng() * 3) : Math.floor(Math.random() * 3);
+    return ranked[idx].w;
+  }
+
+  return ranked[0].w;
+}
+
+function initializeBoardState(rows, cols, answers) {
+  const solutions = cloneGrid(answers);
+  board.rows = rows;
+  board.cols = cols;
+  board.best = solutions;
+  board.answers = Array.from({ length: 3 }, () => new Array(3).fill(null));
+  board.revealed = Array.from({ length: 3 }, () => new Array(3).fill(false));
+  board.scores = Array.from({ length: 3 }, () => new Array(3).fill(null));
+  board.eliminated = Array.from({ length: 3 }, () => new Array(3).fill(false));
+}
+
 // Board builder
 function buildBoard(rng) {
-  const triesMax = 400;
-  for (let attempt = 0; attempt < triesMax; attempt++) {
+  for (let attempt = 0; attempt < 400; attempt++) {
     const cats = shuffle([...CATEGORIES], rng);
     const rows = cats.slice(0, 3);
     const cols = cats.slice(3, 6);
 
-    const answers = Array.from({ length: 3 }, () => Array(3).fill(null));
+    const answers = Array.from({ length: 3 }, () => new Array(3).fill(null));
     const used = new Set();
     let possible = true;
 
@@ -330,16 +336,7 @@ function buildBoard(rng) {
           possible = false;
           break;
         }
-        const ranked = candidates
-          .map((w) => ({ w, score: wordRarityScore(w) }))
-          .sort((a, b) => b.score - a.score);
-        let pick;
-        if (ranked.length > 3) {
-          const idx = rng ? Math.floor(rng() * 3) : Math.floor(Math.random() * 3);
-          pick = ranked[idx].w;
-        } else {
-          pick = ranked[0].w;
-        }
+        const pick = pickRankedCandidate(candidates, rng);
         answers[r][c] = pick;
         used.add(pick);
       }
@@ -347,15 +344,7 @@ function buildBoard(rng) {
     }
 
     if (possible) {
-      const solutions = cloneGrid(answers);
-      board.rows = rows;
-      board.cols = cols;
-      board.best = solutions;
-      // user-submitted answers start empty; best solutions stay in board.best
-      board.answers = Array.from({ length: 3 }, () => Array(3).fill(null));
-      board.revealed = Array.from({ length: 3 }, () => Array(3).fill(false));
-      board.scores = Array.from({ length: 3 }, () => Array(3).fill(null));
-      board.eliminated = Array.from({ length: 3 }, () => Array(3).fill(false));
+      initializeBoardState(rows, cols, answers);
       computeBoardHashAndUpdateUI();
       return true;
     }
@@ -364,7 +353,12 @@ function buildBoard(rng) {
 }
 
 async function computeBoardHashAndUpdateUI() {
-  const gridForHash = (board.best && board.best.flat) ? board.best : (board.answers && board.answers.flat ? board.answers : []);
+  let gridForHash = [];
+  if (board.best?.flat) {
+    gridForHash = board.best;
+  } else if (board.answers?.flat) {
+    gridForHash = board.answers;
+  }
   const flat = gridForHash.flat().join("|");
   const h = await sha256hex(flat);
   if (currentMode === 'daily') {
@@ -386,11 +380,11 @@ function computeMaxScore() {
   let total = 0;
   for (let r = 0; r < 3; r++) {
     for (let c = 0; c < 3; c++) {
-      const bestWord = board.best && board.best[r] ? board.best[r][c] : null;
+      const bestWord = board.best?.[r] ? board.best[r][c] : null;
       if (bestWord) total += wordRarityScore(bestWord);
     }
   }
-  maxScore = total + 500; // + completion bonus
+  maxScore = total;
 }
 
 // Daily mode helpers
@@ -548,24 +542,20 @@ function generateDailyBoardForDate(dateStr) {
   const saved = loadDailyState(dateStr);
   if (saved) {
     // map row/col ids back to category objects if possible
-    try {
-      const rows = saved.board.rows.map((id) => CATEGORIES.find((c) => c.id === id) || { id });
-      const cols = saved.board.cols.map((id) => CATEGORIES.find((c) => c.id === id) || { id });
-      board.rows = rows;
-      board.cols = cols;
-      board.best = saved.board.best ? cloneGrid(saved.board.best) : board.best;
-      board.answers = saved.board.answers ? cloneGrid(saved.board.answers) : board.answers;
-      board.revealed = saved.revealed || Array.from({ length: 3 }, () => Array(3).fill(false));
-      // restore per-cell scores if present, otherwise initialize empty grid
-      board.scores = saved.scores || Array.from({ length: 3 }, () => Array(3).fill(null));
-      board.eliminated = saved.eliminated || Array.from({ length: 3 }, () => Array(3).fill(false));
-      guessesUsed = saved.guessesUsed || 0;
-      guesses = saved.guesses || [];
-      score = saved.score || 0;
-      maxScore = saved.maxScore || maxScore;
-    } catch (e) {
-      console.warn('Malformed saved daily state, ignoring.');
-    }
+    const rows = saved.board.rows.map((id) => CATEGORIES.find((c) => c.id === id) || { id });
+    const cols = saved.board.cols.map((id) => CATEGORIES.find((c) => c.id === id) || { id });
+    board.rows = rows;
+    board.cols = cols;
+    board.best = saved.board.best ? cloneGrid(saved.board.best) : board.best;
+    board.answers = saved.board.answers ? cloneGrid(saved.board.answers) : board.answers;
+    board.revealed = saved.revealed || Array.from({ length: 3 }, () => new Array(3).fill(false));
+    // restore per-cell scores if present, otherwise initialize empty grid
+    board.scores = saved.scores || Array.from({ length: 3 }, () => new Array(3).fill(null));
+    board.eliminated = saved.eliminated || Array.from({ length: 3 }, () => new Array(3).fill(false));
+    guessesUsed = saved.guessesUsed || 0;
+    guesses = saved.guesses || [];
+    score = saved.score || 0;
+    maxScore = saved.maxScore || maxScore;
   }
   return true;
 }
@@ -586,7 +576,6 @@ function renderGrid() {
     ch.className = "col-header";
     const col = board.cols[c];
     ch.innerHTML = `<strong>${col.label}</strong>`;
-    // Headers are no longer interactive — clicking should not open alerts.
     dom.grid.appendChild(ch);
   }
 
@@ -606,13 +595,13 @@ function renderGrid() {
       cell.className = "cell hidden";
       cell.dataset.r = r;
       cell.dataset.c = c;
-      const rowLabel = board.rows[r] && board.rows[r].label ? board.rows[r].label : '';
-      const colLabel = board.cols[c] && board.cols[c].label ? board.cols[c].label : '';
+      const rowLabel = board.rows[r]?.label ? board.rows[r].label : '';
+      const colLabel = board.cols[c]?.label ? board.cols[c].label : '';
       if (board.revealed[r][c]) {
         cell.classList.remove("hidden");
         cell.classList.add("revealed");
         // eliminated cells (expert mode) show a disabled/ban marker and no score
-        const isElim = board.eliminated && board.eliminated[r] && board.eliminated[r][c];
+        const isElim = board.eliminated?.[r]?.[c];
         if (isElim) {
           cell.classList.add('eliminated');
           cell.innerHTML = `<div class="word"><i class="fa-solid fa-ban eliminated-icon" aria-hidden="true"></i></div>`;
@@ -621,8 +610,8 @@ function renderGrid() {
           cell.setAttribute('aria-label', `${rowLabel} + ${colLabel} — eliminated.`);
         } else {
           // show the guessed word and the points awarded for that cell (if any)
-          const cellScore = (board.scores && board.scores[r] && board.scores[r][c] != null) ? board.scores[r][c] : null;
-          const scoreHtml = cellScore != null ? `<div class="cell-score">+${cellScore}</div>` : `<div class="cell-score"></div>`;
+          const cellScore = (board.scores?.[r]?.[c] == null) ? null : board.scores[r][c];
+          const scoreHtml = cellScore == null ? `<div class="cell-score"></div>` : `<div class="cell-score">+${cellScore}</div>`;
           cell.innerHTML = `<div class="word">${board.answers[r][c]}</div>${scoreHtml}`;
           // Make revealed cells explicitly unfocusable and non-interactive for accessibility
           cell.tabIndex = -1;
@@ -653,7 +642,7 @@ function renderGrid() {
 }
 
 // Modal logic
-let modalTarget = null; // {r,c}
+let modalTarget = null;
 
 function openCellModal(r, c) {
   modalTarget = { r, c };
@@ -712,9 +701,9 @@ function setDifficulty(mode, save = true) {
 // wire difficulty option clicks with confirm that changing difficulty clears the board
 async function clearBoard() {
   // clear revealed flags, scores, eliminated flags, guesses and score
-  board.revealed = Array.from({ length: 3 }, () => Array(3).fill(false));
-  board.scores = Array.from({ length: 3 }, () => Array(3).fill(null));
-  board.eliminated = Array.from({ length: 3 }, () => Array(3).fill(false));
+  board.revealed = Array.from({ length: 3 }, () => new Array(3).fill(false));
+  board.scores = Array.from({ length: 3 }, () => new Array(3).fill(null));
+  board.eliminated = Array.from({ length: 3 }, () => new Array(3).fill(false));
   guessesUsed = 0;
   guesses = [];
   score = 0;
@@ -725,7 +714,7 @@ async function clearBoard() {
 }
 
 document.addEventListener('click', async (ev) => {
-  const btn = ev.target.closest && ev.target.closest('.difficulty-option');
+  const btn = ev.target.closest?.('.difficulty-option');
   if (!btn) return;
   const m = btn.dataset.mode;
   if (!m) return;
@@ -806,7 +795,7 @@ function showInputPrompt(promptText, defaultValue = '') {
     const mm = dom.messageModal;
     const txt = dom.messageText;
     const controls = dom.messageControls;
-    txt.innerHTML = `<div style="margin-bottom:8px;">${promptText}</div><input id="msgInput" value="${String(defaultValue).replace(/"/g, '&quot;')}" />`;
+    txt.innerHTML = `<div style="margin-bottom:8px;">${promptText}</div><input id="msgInput" value="${String(defaultValue).replaceAll('"', '&quot;')}" />`;
     controls.innerHTML = '<button id="msgOk">OK</button><button id="msgCancel" class="secondary">Cancel</button>';
     mm.classList.remove('hidden');
     mm.setAttribute('aria-hidden', 'false');
@@ -829,92 +818,6 @@ function showInputPrompt(promptText, defaultValue = '') {
   });
 }
 
-// Open the leaderboard modal. For daily mode fetch today's leaderboard; for infinite show a message.
-async function openLeaderboardModal() {
-  if (!dom.leaderboardModal) return;
-  dom.leaderboardMessage.style.display = 'none';
-  dom.leaderboardList.innerHTML = '';
-  dom.leaderboardModal.classList.remove('hidden');
-  dom.leaderboardModal.setAttribute('aria-hidden', 'false');
-
-  if (currentMode === 'infinite') {
-    dom.leaderboardMessage.textContent = "Leaderboards aren't available for Infinite mode. Play Daily instead!";
-    dom.leaderboardMessage.style.display = 'block';
-    return;
-  }
-
-  const dateStr = currentBoardId || getTodayDateStr();
-  dom.leaderboardMessage.textContent = 'Loading...';
-  dom.leaderboardMessage.style.display = 'block';
-  try {
-    const entries = await fetchLeaderboardForDate(dateStr);
-    dom.leaderboardMessage.style.display = 'none';
-    renderLeaderboard(entries);
-  } catch (e) {
-    dom.leaderboardMessage.textContent = 'Could not load leaderboard.';
-    dom.leaderboardMessage.style.display = 'block';
-    console.error('Leaderboard fetch error', e);
-  }
-}
-
-function closeLeaderboardModal() {
-  if (!dom.leaderboardModal) return;
-  dom.leaderboardModal.classList.add('hidden');
-  dom.leaderboardModal.setAttribute('aria-hidden', 'true');
-}
-
-async function fetchLeaderboardForDate(dateStr) {
-  const resp = await fetch(`${API_URL}/leaderboard/${encodeURIComponent(dateStr)}`, { cache: 'no-store' });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const arr = await resp.json();
-  // server sorts ascending; sort descending by score
-  const sorted = Array.isArray(arr) ? arr.slice().sort((a, b) => b.score - a.score) : [];
-  return sorted.slice(0, 10);
-}
-
-function renderLeaderboard(entries) {
-  dom.leaderboardList.innerHTML = '';
-  if (!entries || entries.length === 0) {
-    dom.leaderboardList.innerHTML = '<li class="muted">No entries yet.</li>';
-    return;
-  }
-  entries.forEach((e, idx) => {
-    const li = document.createElement('li');
-    li.className = (idx === 0) ? 'top' : '';
-    const name = document.createElement('div');
-    name.className = 'name';
-    name.textContent = `${idx + 1}. ${e.name}`;
-    const scoreEl = document.createElement('div');
-    scoreEl.className = 'score';
-    scoreEl.textContent = `${e.score} / ${maxScore}`;
-    li.appendChild(name);
-    li.appendChild(scoreEl);
-    dom.leaderboardList.appendChild(li);
-  });
-}
-
-async function submitLeaderboardEntry(name, scoreVal, dateStr) {
-  try {
-    const payload = { name: String(name).slice(0, 50), score: Math.round(Number(scoreVal) || 0), date: dateStr };
-    const resp = await fetch(`${API_URL}/leaderboard`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) {
-      const txt = await resp.text();
-      throw new Error(txt || `HTTP ${resp.status}`);
-    }
-    await showAlert('Score submitted!');
-    // refresh leaderboard display
-    const entries = await fetchLeaderboardForDate(dateStr);
-    renderLeaderboard(entries);
-  } catch (e) {
-    console.error('Submit error', e);
-    await showAlert('Could not submit score. Try again later.');
-  }
-}
-
 // submit a guess for the modal's target cell
 async function submitGuessForModal() {
   if (!modalTarget) return;
@@ -934,7 +837,7 @@ async function submitGuessForModal() {
       for (let r = 0; r < 3; r++) {
         for (let c = 0; c < 3; c++) {
           board.revealed[r][c] = true;
-          const best = (board.best && board.best[r] && board.best[r][c]) ? board.best[r][c] : board.answers[r][c];
+          const best = board.best?.[r]?.[c] ? board.best[r][c] : board.answers[r][c];
           const bestScore = best ? wordRarityScore(best) : 0;
           if (!board.answers[r][c] && best) {
             board.answers[r][c] = best;
@@ -951,11 +854,11 @@ async function submitGuessForModal() {
 
     const cheatMatch = valRaw.match(/^!(\d+)$/);
     if (cheatMatch) {
-      const forcedScore = parseInt(cheatMatch[1], 10);
-      if (!isNaN(forcedScore) && forcedScore >= 0) {
+      const forcedScore = Number.parseInt(cheatMatch[1], 10);
+      if (!Number.isNaN(forcedScore) && forcedScore >= 0) {
         const r = modalTarget.r, c = modalTarget.c;
         board.revealed[r][c] = true;
-        if (!board.scores) board.scores = Array.from({ length: 3 }, () => Array(3).fill(null));
+        if (!board.scores) board.scores = Array.from({ length: 3 }, () => new Array(3).fill(null));
         board.scores[r][c] = forcedScore;
         board.answers[r][c] = forcedScore.toString();
         score += forcedScore;
@@ -993,8 +896,8 @@ async function submitGuessForModal() {
   const isDuplicate = used.has(guessNorm);
 
   // category checks: ensure the guessed word satisfies both the row and column headers
-  const rowTestResult = board.rows[r] && board.rows[r].test ? board.rows[r].test : (() => true);
-  const colTestResult = board.cols[c] && board.cols[c].test ? board.cols[c].test : (() => true);
+  const rowTestResult = board.rows?.[r]?.test ? board.rows[r].test : (() => true);
+  const colTestResult = board.cols?.[c]?.test ? board.cols[c].test : (() => true);
   const meetsCategory = matchedWord ? (rowTestResult(matchedWord) && colTestResult(matchedWord)) : false;
 
   const HARD_PENALTY = 50; // points deducted on hard mode for invalid attempts
@@ -1036,13 +939,13 @@ async function submitGuessForModal() {
   // Expert mode: incorrect or duplicate -> eliminate the cell (no score)
   if (difficulty === 'expert' && (!matchedWord || isDuplicate)) {
     attempt.valid = false;
-    attempt.reason = (!matchedWord) ? 'not_in_wordlist' : 'duplicate';
+    attempt.reason = (matchedWord) ? 'duplicate' : 'not_in_wordlist';
     guesses.push(attempt);
     // mark cell eliminated and revealed with no score
-    if (!board.eliminated) board.eliminated = Array.from({ length: 3 }, () => Array(3).fill(false));
+    if (!board.eliminated) board.eliminated = Array.from({ length: 3 }, () => new Array(3).fill(false));
     board.revealed[r][c] = true;
     board.eliminated[r][c] = true;
-    if (!board.scores) board.scores = Array.from({ length: 3 }, () => Array(3).fill(null));
+    if (!board.scores) board.scores = Array.from({ length: 3 }, () => new Array(3).fill(null));
     board.scores[r][c] = 0;
     renderGrid();
     closeModal();
@@ -1057,10 +960,10 @@ async function submitGuessForModal() {
     attempt.valid = false;
     attempt.reason = 'category_mismatch';
     guesses.push(attempt);
-    if (!board.eliminated) board.eliminated = Array.from({ length: 3 }, () => Array(3).fill(false));
+    if (!board.eliminated) board.eliminated = Array.from({ length: 3 }, () => new Array(3).fill(false));
     board.revealed[r][c] = true;
     board.eliminated[r][c] = true;
-    if (!board.scores) board.scores = Array.from({ length: 3 }, () => Array(3).fill(null));
+    if (!board.scores) board.scores = Array.from({ length: 3 }, () => new Array(3).fill(null));
     board.scores[r][c] = 0;
     renderGrid();
     closeModal();
@@ -1125,7 +1028,7 @@ async function submitGuessForModal() {
   attempt.acceptedWord = acceptedWord;
   attempt.points = points;
   guesses.push(attempt);
-  if (!board.scores) board.scores = Array.from({ length: 3 }, () => Array(3).fill(null));
+  if (!board.scores) board.scores = Array.from({ length: 3 }, () => new Array(3).fill(null));
   board.scores[r][c] = points;
   score += points;
   renderGrid();
@@ -1152,75 +1055,90 @@ function updateSidebar() {
 }
 
 function buildAnalysisLines() {
-  const lines = [];
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 3; c++) {
-      const rowLabel = board.rows[r] && board.rows[r].label ? board.rows[r].label : `Row ${r + 1}`;
-      const colLabel = board.cols[c] && board.cols[c].label ? board.cols[c].label : `Col ${c + 1}`;
-      const eliminated = board.eliminated && board.eliminated[r] && board.eliminated[r][c];
-      const userWord = board.answers && board.answers[r] ? board.answers[r][c] : null;
-      const bestWord = board.best && board.best[r] ? board.best[r][c] : null;
-      const userScore = (!eliminated && board.scores && board.scores[r] && board.scores[r][c] != null) ? board.scores[r][c] : null;
+  const getLabel = (items, index, fallbackPrefix) => items?.[index]?.label ? items[index].label : `${fallbackPrefix} ${index + 1}`;
+  const formatPoints = (value) => value == null ? '' : ` (+${value})`;
+
+  return Array.from({ length: 3 }, (_, r) => r).flatMap((r) => {
+    const rowLabel = getLabel(board.rows, r, 'Row');
+
+    return Array.from({ length: 3 }, (_, c) => c).map((c) => {
+      const colLabel = getLabel(board.cols, c, 'Col');
+      const eliminated = Boolean(board.eliminated?.[r]?.[c]);
+      const userWord = board.answers?.[r]?.[c] ?? null;
+      const bestWord = board.best?.[r]?.[c] ?? null;
+      const userScore = eliminated ? null : board.scores?.[r]?.[c] ?? null;
       const bestScore = bestWord ? wordRarityScore(bestWord) : null;
       const matched = userWord && bestWord && String(userWord).toLowerCase() === String(bestWord).toLowerCase();
-      const userText = eliminated ? 'Eliminated' : (userWord || '—');
+      const userText = eliminated ? 'Skipped' : (userWord || '—');
       const bestText = bestWord || '—';
-      const summary = `${rowLabel} + ${colLabel}: you ${userText}${(!eliminated && userScore != null) ? ` (+${userScore})` : ''} | best ${bestText}${bestScore != null ? ` (+${bestScore})` : ''}${matched ? ' — matched best' : ''}`;
-      lines.push(summary);
-    }
-  }
-  return lines;
+
+      return `${rowLabel} + ${colLabel}: you ${userText}${eliminated ? '' : formatPoints(userScore)} | best ${bestText}${formatPoints(bestScore)}${matched ? ' — matched best' : ''}`;
+    });
+  });
 }
 
 // richer data for the interactive analysis view
+function getAnalysisCellLabel(items, index, fallbackPrefix) {
+  return items?.[index]?.label ? items[index].label : `${fallbackPrefix} ${index + 1}`;
+}
+
+function buildAnalysisEntry(r, c) {
+  const rowLabel = getAnalysisCellLabel(board.rows, r, 'Row');
+  const colLabel = getAnalysisCellLabel(board.cols, c, 'Col');
+  const eliminated = !!(board.eliminated?.[r]?.[c]);
+  const userWord = board.answers?.[r]?.[c] ?? null;
+  const bestWord = board.best?.[r]?.[c] ?? null;
+  const userScore = (!eliminated && board.scores?.[r]?.[c] != null) ? board.scores[r][c] : null;
+  const bestScore = bestWord ? wordRarityScore(bestWord) : null;
+  const matched = userWord && bestWord && String(userWord).toLowerCase() === String(bestWord).toLowerCase();
+  const gap = (bestScore == null ? 0 : bestScore) - (userScore == null ? 0 : userScore);
+
+  return {
+    r,
+    c,
+    rowLabel,
+    colLabel,
+    eliminated,
+    userWord,
+    bestWord,
+    userScore,
+    bestScore,
+    matched,
+    gap,
+  };
+}
+
+function buildAnalysisSummaryEntry(entries) {
+  const totalBestScore = entries.reduce((sum, e) => sum + (e.bestScore == null ? 0 : e.bestScore), 0);
+  const matchedCount = entries.filter((e) => e.matched).length;
+  const eliminatedCount = entries.filter((e) => e.eliminated).length;
+  const percentOfMax = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+  const stats = [
+    { label: 'Score', value: `${score} / ${maxScore} (${percentOfMax}%)` },
+    { label: 'Matched cells', value: `${matchedCount} / 9` },
+    { label: 'Best cell points', value: `${totalBestScore}` },
+    { label: 'Guesses used', value: `${guessesUsed}` },
+  ];
+
+  if (eliminatedCount > 0) {
+    stats.splice(2, 0, { label: 'Skipped', value: `${eliminatedCount}` });
+  }
+
+  return {
+    type: 'summary',
+    stats,
+  };
+}
+
 function buildAnalysisEntries() {
   const entries = [];
   for (let r = 0; r < 3; r++) {
     for (let c = 0; c < 3; c++) {
-      const rowLabel = board.rows[r] && board.rows[r].label ? board.rows[r].label : `Row ${r + 1}`;
-      const colLabel = board.cols[c] && board.cols[c].label ? board.cols[c].label : `Col ${c + 1}`;
-      const eliminated = !!(board.eliminated && board.eliminated[r] && board.eliminated[r][c]);
-      const userWord = board.answers && board.answers[r] ? board.answers[r][c] : null;
-      const bestWord = board.best && board.best[r] ? board.best[r][c] : null;
-      const userScore = (!eliminated && board.scores && board.scores[r] && board.scores[r][c] != null) ? board.scores[r][c] : null;
-      const bestScore = bestWord ? wordRarityScore(bestWord) : null;
-      const matched = userWord && bestWord && String(userWord).toLowerCase() === String(bestWord).toLowerCase();
-      const gap = (bestScore != null ? bestScore : 0) - (userScore != null ? userScore : 0);
-      entries.push({
-        r,
-        c,
-        rowLabel,
-        colLabel,
-        eliminated,
-        userWord,
-        bestWord,
-        userScore,
-        bestScore,
-        matched,
-        gap,
-      });
+      entries.push(buildAnalysisEntry(r, c));
     }
   }
 
-  // summary slide with overall stats
-  const totalBestScore = entries.reduce((sum, e) => sum + (e.bestScore != null ? e.bestScore : 0), 0);
-  const totalUserScore = entries.reduce((sum, e) => sum + (e.eliminated ? 0 : (e.userScore != null ? e.userScore : 0)), 0);
-  const matchedCount = entries.filter((e) => e.matched).length;
-  const eliminatedCount = entries.filter((e) => e.eliminated).length;
-  const pointsMissed = Math.max(0, totalBestScore - totalUserScore);
-  const percentOfMax = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
-
-  entries.push({
-    type: 'summary',
-    stats: [
-      { label: 'Score', value: `${score} / ${maxScore} (${percentOfMax}%)` },
-      { label: 'Cell points', value: `${totalUserScore} / ${totalBestScore}` },
-      { label: 'Matched cells', value: `${matchedCount} / 9` },
-      { label: 'Eliminated', value: `${eliminatedCount}` },
-      { label: 'Points missed', value: `${pointsMissed}` },
-      { label: 'Guesses used', value: `${guessesUsed}` },
-    ],
-  });
+  entries.push(buildAnalysisSummaryEntry(entries));
   return entries;
 }
 
@@ -1233,18 +1151,22 @@ function showBoardAnalysis() {
     let page = 0;
 
     txt.innerHTML = `
+      <div id="analysisClose" class="analysis-close" role="button" tabindex="0" aria-label="Close analysis">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+      </div>
       <div class="analysis-title">Board analysis</div>
       <div class="analysis-panel">
         <div class="analysis-card" id="analysisCard"></div>
       </div>
     `;
     controls.innerHTML = `
-      <div class="analysis-nav">
-        <button id="analysisPrev" class="secondary">Prev</button>
-        <div class="analysis-nav-status" id="analysisNavStatus"></div>
-        <button id="analysisNext">Next</button>
+      <div class="analysis-controls">
+        <div class="analysis-nav">
+          <button id="analysisPrev" class="secondary">Prev</button>
+          <div class="analysis-nav-status" id="analysisNavStatus"></div>
+          <button id="analysisNext">Next</button>
+        </div>
       </div>
-      <button id="analysisClose" class="analysis-close">Close</button>
     `;
     mm.classList.remove('hidden');
     mm.setAttribute('aria-hidden', 'false');
@@ -1257,26 +1179,21 @@ function showBoardAnalysis() {
 
     const describeStatus = (entry) => {
       if (entry.type === 'summary') return { text: 'Overview', cls: 'good' };
-      if (entry.eliminated) return { text: 'Eliminated', cls: 'warn' };
+      if (entry.eliminated) return { text: 'Skipped', cls: 'warn' };
       if (entry.matched) return { text: 'Perfect match', cls: 'good' };
       if (entry.bestScore != null) {
-        const ratio = (entry.userScore != null ? entry.userScore : 0) / (entry.bestScore || 1);
-        if (ratio >= 0.9) return { text: 'Almost perfect', cls: 'almost' };
-        if (ratio >= 0.6) return { text: 'Close', cls: 'ok' };
-        if (ratio >= 0.3) return { text: 'Needs work', cls: 'warn' };
-        return { text: 'Very bad', cls: 'miss' };
+        const ratio = (entry.userScore == null ? 0 : entry.userScore) / (entry.bestScore || 1);
+        if (ratio >= 0.9) return { text: 'Close', cls: 'almost' };
+        if (ratio >= 0.6) return { text: 'Solid', cls: 'ok' };
+        if (ratio >= 0.3) return { text: 'Partial', cls: 'warn' };
+        return { text: 'Missed', cls: 'miss' };
       }
-      return { text: 'No best word', cls: 'miss' };
+      return { text: 'No match', cls: 'miss' };
     };
 
-    const renderPage = (direction) => {
-      if (!card) return;
-      const entry = entries[page];
-      const { text: statusText, cls: statusCls } = describeStatus(entry);
-
-      if (entry.type === 'summary') {
-        const statsHtml = (entry.stats || []).map((s) => `<div class="analysis-summary-row"><span>${escapeHtml(s.label)}</span><span>${escapeHtml(s.value)}</span></div>`).join('');
-        card.innerHTML = `
+    const renderSummaryPage = (entry, statusText, statusCls) => {
+      const statsHtml = (entry.stats || []).map((s) => `<div class="analysis-summary-row"><span>${escapeHtml(s.label)}</span><span>${escapeHtml(s.value)}</span></div>`).join('');
+      return `
           <div class="analysis-crumb">${page + 1} / ${entries.length}</div>
           <div class="analysis-section">
             <div class="analysis-tags">Overall</div>
@@ -1284,15 +1201,28 @@ function showBoardAnalysis() {
           </div>
           <div class="analysis-summary">${statsHtml}</div>
         `;
-      } else {
-        const gapText = (entry.bestScore != null)
-          ? ((entry.userScore != null ? entry.bestScore - entry.userScore : entry.bestScore) === 0 ? 'No gap' : `${entry.bestScore - (entry.userScore || 0)} pts missed`)
-          : 'N/A';
-        const userLabel = entry.eliminated ? 'Eliminated' : (entry.userWord || '—');
-        const userScoreText = entry.eliminated ? '' : (entry.userScore != null ? `+${entry.userScore}` : 'No score');
-        const bestScoreText = entry.bestScore != null ? `+${entry.bestScore}` : 'N/A';
+    };
 
-        card.innerHTML = `
+    const renderDetailPage = (entry, statusText, statusCls) => {
+      let gapText;
+      if (entry.bestScore == null) {
+        gapText = 'N/A';
+      } else {
+        const gap = entry.bestScore - (entry.userScore ?? 0);
+        gapText = gap === 0 ? 'No gap' : `${gap} away`;
+      }
+      const userLabel = entry.eliminated ? 'Skipped' : (entry.userWord || '—');
+      let userScoreText;
+      if (entry.eliminated) {
+        userScoreText = '';
+      } else if (entry.userScore == null) {
+        userScoreText = 'No score';
+      } else {
+        userScoreText = `+${entry.userScore}`;
+      }
+      const bestScoreText = entry.bestScore == null ? 'N/A' : `+${entry.bestScore}`;
+
+      return `
           <div class="analysis-crumb">${page + 1} / ${entries.length}</div>
           <div class="analysis-section">
             <div class="analysis-tags">${escapeHtml(entry.rowLabel)} · ${escapeHtml(entry.colLabel)}</div>
@@ -1312,14 +1242,9 @@ function showBoardAnalysis() {
           </div>
           <div class="analysis-gap">${escapeHtml(gapText)}</div>
         `;
-      }
+    };
 
-      // animation hint based on direction
-      card.classList.remove('slide-in-left', 'slide-in-right');
-      void card.offsetWidth;
-      if (direction === 'next') card.classList.add('slide-in-right');
-      if (direction === 'prev') card.classList.add('slide-in-left');
-
+    const updateNavigationState = (entry) => {
       const isSummary = entry.type === 'summary';
       if (status) status.textContent = `${page + 1} / ${entries.length}`;
       if (nav) nav.style.display = isSummary ? 'none' : 'flex';
@@ -1328,6 +1253,24 @@ function showBoardAnalysis() {
       nextBtn.style.display = isSummary ? 'none' : '';
       prevBtn.style.display = isSummary ? 'none' : '';
       if (status) status.style.display = isSummary ? 'none' : '';
+    };
+
+    const renderPage = (direction) => {
+      if (!card) return;
+      const entry = entries[page];
+      const { text: statusText, cls: statusCls } = describeStatus(entry);
+
+      card.innerHTML = entry.type === 'summary'
+        ? renderSummaryPage(entry, statusText, statusCls)
+        : renderDetailPage(entry, statusText, statusCls);
+
+      // animation hint based on direction
+      card.classList.remove('slide-in-left', 'slide-in-right');
+      void card.offsetWidth;
+      if (direction === 'next') card.classList.add('slide-in-right');
+      if (direction === 'prev') card.classList.add('slide-in-left');
+
+      updateNavigationState(entry);
     };
 
     const goPrev = () => {
@@ -1348,6 +1291,12 @@ function showBoardAnalysis() {
       mm.setAttribute('aria-hidden', 'true');
       resolve();
     }, { once: true });
+    closeBtn.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        closeBtn.click();
+      }
+    });
 
     closeBtn.focus();
     renderPage('init');
@@ -1357,35 +1306,15 @@ function showBoardAnalysis() {
 function checkBoardComplete() {
   const all = board.revealed.flat().every(Boolean);
   if (all) {
-    // completion bonus
-    const bonus = Math.round(500);
-    score += bonus;
     updateStatus();
     setTimeout(async () => {
-      await showAlert(`Board complete! Bonus ${bonus} points awarded. Final score: ${score}`);
+      await showAlert(`Board complete! Final score: ${score}`);
       // persist final result and clear infinite state when complete
       if (currentMode === 'daily') {
         saveDailyState(currentBoardId || getTodayDateStr());
       } else if (currentMode === 'infinite') {
         // Clear saved infinite state since board is completed
         deleteInfiniteState();
-      }
-      // Offer submission to leaderboard for daily mode
-      if (currentMode === 'daily') {
-        const wants = await showConfirm('Submit your score to the leaderboard?');
-        if (wants) {
-          const defaultName = localStorage.getItem('wordgrid:playerName') || '';
-          const name = await showInputPrompt('Enter a name to display on the leaderboard', defaultName);
-          if (name) {
-            try {
-              // persist a local convenience name for next time
-              try { localStorage.setItem('wordgrid:playerName', name); } catch (e) { }
-              await submitLeaderboardEntry(name, score, currentBoardId || getTodayDateStr());
-            } catch (e) {
-              console.error('Leaderboard submit failed', e);
-            }
-          }
-        }
       }
       const wantsAnalysis = await showConfirm('See an analysis comparing your answers to the best board?');
       if (wantsAnalysis) {
@@ -1419,8 +1348,8 @@ function revealAll() {
   for (let r = 0; r < 3; r++) {
     for (let c = 0; c < 3; c++) {
       board.revealed[r][c] = true;
-      const isEliminated = board.eliminated && board.eliminated[r] && board.eliminated[r][c];
-      if (!isEliminated && !board.answers[r][c] && board.best && board.best[r]) {
+      const isEliminated = board.eliminated?.[r]?.[c];
+      if (!isEliminated && !board.answers[r][c] && board.best?.[r]) {
         board.answers[r][c] = board.best[r][c];
       }
     }
@@ -1439,26 +1368,22 @@ dom.rerollBtn.addEventListener("click", async () => {
   if (ok) newBoard();
 });
 
-// no suggestions: keep input simple
 dom.modalGuessBtn.addEventListener("click", submitGuessForModal);
 dom.modalClose.addEventListener("click", closeModal);
 dom.modalCancelBtn.addEventListener("click", closeModal);
 dom.cellModal.addEventListener("click", (ev) => {
   if (ev.target === dom.cellModal) closeModal();
 });
-// Settings button wiring
+
 if (dom.settingsBtn) dom.settingsBtn.addEventListener('click', openSettingsModal);
 if (dom.settingsClose) dom.settingsClose.addEventListener('click', closeSettingsModal);
 if (dom.settingsModal) dom.settingsModal.addEventListener('click', (ev) => { if (ev.target === dom.settingsModal) closeSettingsModal(); });
-// History / leaderboard button: repurposed to reset the board (clear progress)
+
 if (dom.resetBoardBtn) dom.resetBoardBtn.addEventListener('click', async () => {
   const ok = await showConfirm('Reset the board? This will clear all progress (guesses and scores) but keep the current board. Continue?');
   if (ok) await clearBoard();
 });
-// Leaderboard dock button
-if (dom.leaderboardBtn) dom.leaderboardBtn.addEventListener('click', () => openLeaderboardModal());
-if (dom.leaderboardClose) dom.leaderboardClose.addEventListener('click', closeLeaderboardModal);
-if (dom.leaderboardModal) dom.leaderboardModal.addEventListener('click', (ev) => { if (ev.target === dom.leaderboardModal) closeLeaderboardModal(); });
+
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closeModal();
@@ -1483,81 +1408,80 @@ if (dom.modalInput) {
   });
 }
 
+function updateModeTabs(mode) {
+  if (!dom.modeDaily || !dom.modeInfinite) return;
+  dom.modeDaily.classList.toggle('active', mode === 'daily');
+  dom.modeInfinite.classList.toggle('active', mode === 'infinite');
+  dom.modeDaily.setAttribute('aria-selected', mode === 'daily' ? 'true' : 'false');
+  dom.modeInfinite.setAttribute('aria-selected', mode === 'infinite' ? 'true' : 'false');
+}
+
+function refreshModeView() {
+  renderGrid();
+  updateStatus();
+}
+
+function resetDailyBoard(today) {
+  currentBoardId = today;
+  startCountdown();
+  generateDailyBoardForDate(today);
+  const saved = loadDailyState(today);
+  if (!saved) {
+    guessesUsed = 0;
+    score = 0;
+    computeMaxScore();
+    saveDailyState(today);
+  }
+}
+
+function restoreInfiniteBoard(saved) {
+  const rows = saved.board.rows.map((id) => CATEGORIES.find((c) => c.id === id));
+  const cols = saved.board.cols.map((id) => CATEGORIES.find((c) => c.id === id));
+  if (rows.some((r) => !r) || cols.some((c) => !c)) {
+    const missingRows = saved.board.rows.filter((id) => !CATEGORIES.some((c) => c.id === id));
+    const missingCols = saved.board.cols.filter((id) => !CATEGORIES.some((c) => c.id === id));
+    throw new Error(`Missing categories - rows: [${missingRows.join(', ')}], cols: [${missingCols.join(', ')}]`);
+  }
+  board.rows = rows;
+  board.cols = cols;
+  board.best = saved.board.best ? cloneGrid(saved.board.best) : Array.from({ length: 3 }, () => new Array(3).fill(null));
+  board.answers = saved.board.answers ? cloneGrid(saved.board.answers) : Array.from({ length: 3 }, () => new Array(3).fill(null));
+  board.revealed = saved.revealed || Array.from({ length: 3 }, () => new Array(3).fill(false));
+  board.scores = saved.scores || Array.from({ length: 3 }, () => new Array(3).fill(null));
+  board.eliminated = saved.eliminated || Array.from({ length: 3 }, () => new Array(3).fill(false));
+  guessesUsed = saved.guessesUsed || 0;
+  guesses = saved.guesses || [];
+  score = saved.score || 0;
+  maxScore = saved.maxScore || 0;
+  currentBoardId = saved.boardId;
+  computeBoardHashAndUpdateUI();
+}
+
+function setInfiniteMode() {
+  stopCountdown();
+  const saved = loadInfiniteState();
+  if (saved?.board) {
+    try {
+      restoreInfiniteBoard(saved);
+      return;
+    } catch (e) {
+      console.warn('Could not restore saved infinite board, generating new one', e);
+    }
+  }
+  newBoard();
+}
+
 function setMode(mode) {
   if (mode !== 'daily' && mode !== 'infinite') return;
   currentMode = mode;
-  if (dom.modeDaily && dom.modeInfinite) {
-    dom.modeDaily.classList.toggle('active', mode === 'daily');
-    dom.modeInfinite.classList.toggle('active', mode === 'infinite');
-    dom.modeDaily.setAttribute('aria-selected', mode === 'daily' ? 'true' : 'false');
-    dom.modeInfinite.setAttribute('aria-selected', mode === 'infinite' ? 'true' : 'false');
-  }
-  // disable reroll for daily
+  updateModeTabs(mode);
   if (dom.rerollBtn) dom.rerollBtn.disabled = mode === 'daily';
   if (mode === 'daily') {
-    const today = getTodayDateStr();
-    currentBoardId = today;
-    startCountdown();
-    generateDailyBoardForDate(today);
-    // load saved progress if present
-    const saved = loadDailyState(today);
-    if (saved) {
-      // already applied inside generate; re-render
-      renderGrid();
-      updateStatus();
-    } else {
-      // ensure status reflects fresh board
-      guessesUsed = 0;
-      score = 0;
-      computeMaxScore();
-      renderGrid();
-      updateStatus();
-      saveDailyState(today);
-    }
+    resetDailyBoard(getTodayDateStr());
   } else {
-    // infinite
-    stopCountdown();
-    // Try to load saved infinite board state
-    const saved = loadInfiniteState();
-    if (saved && saved.board) {
-      // Restore the saved board
-      try {
-        const rows = saved.board.rows.map((id) => CATEGORIES.find((c) => c.id === id));
-        const cols = saved.board.cols.map((id) => CATEGORIES.find((c) => c.id === id));
-        // Validate that all categories were found
-        if (rows.some((r) => !r) || cols.some((c) => !c)) {
-          const missingRows = saved.board.rows.filter((id) => !CATEGORIES.find((c) => c.id === id));
-          const missingCols = saved.board.cols.filter((id) => !CATEGORIES.find((c) => c.id === id));
-          throw new Error(`Missing categories - rows: [${missingRows.join(', ')}], cols: [${missingCols.join(', ')}]`);
-        }
-        board.rows = rows;
-        board.cols = cols;
-        board.best = saved.board.best ? cloneGrid(saved.board.best) : Array.from({ length: 3 }, () => Array(3).fill(null));
-        board.answers = saved.board.answers ? cloneGrid(saved.board.answers) : Array.from({ length: 3 }, () => Array(3).fill(null));
-        board.revealed = saved.revealed || Array.from({ length: 3 }, () => Array(3).fill(false));
-        board.scores = saved.scores || Array.from({ length: 3 }, () => Array(3).fill(null));
-        board.eliminated = saved.eliminated || Array.from({ length: 3 }, () => Array(3).fill(false));
-        guessesUsed = saved.guessesUsed || 0;
-        guesses = saved.guesses || [];
-        score = saved.score || 0;
-        maxScore = saved.maxScore || 0;
-        currentBoardId = saved.boardId;
-        computeBoardHashAndUpdateUI();
-        renderGrid();
-        updateStatus();
-      } catch (e) {
-        console.warn('Could not restore saved infinite board, generating new one', e);
-        newBoard();
-        renderGrid();
-        updateStatus();
-      }
-    } else {
-      // No saved board, create a new one
-      newBoard();
-      renderGrid();
-      updateStatus();
-    }
+    setInfiniteMode();
   }
+  refreshModeView();
 }
 
 if (dom.modeDaily) dom.modeDaily.addEventListener('click', () => {
@@ -1577,7 +1501,9 @@ if (dom.modeInfinite) dom.modeInfinite.addEventListener('click', () => setMode('
       setDifficulty(difficulty, false);
     }
   } catch (e) {
-    // ignore
+    // If accessing localStorage fails (e.g. disabled or blocked), log and fall back to default
+    console.warn('Failed to load difficulty from storage, using default.', e);
+    setDifficulty(difficulty, false);
   }
   // initialize according to saved mode
   setMode(currentMode || 'infinite');
