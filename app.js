@@ -214,6 +214,16 @@ function escapeHtml(str) {
     .replaceAll("'", '&#39;');
 }
 
+function getWordFontSize(word) {
+  const len = String(word ?? '').replace(/[^a-z0-9]/gi, '').length;
+  if (len <= 6) return 18;
+  if (len <= 8) return 16;
+  if (len <= 10) return 14;
+  if (len <= 12) return 12;
+  if (len <= 14) return 11;
+  return 10;
+}
+
 function normalizeBoardSeed(seed) {
   return String(seed ?? '')
     .toLowerCase()
@@ -693,7 +703,7 @@ function renderGrid() {
           // show the guessed word and the points awarded for that cell (if any)
           const cellScore = (board.scores?.[r]?.[c] == null) ? null : board.scores[r][c];
           const scoreHtml = cellScore == null ? `<div class="cell-score"></div>` : `<div class="cell-score">+${cellScore}</div>`;
-          cell.innerHTML = `<div class="word">${board.answers[r][c]}</div>${scoreHtml}`;
+          cell.innerHTML = `<div class="word" style="font-size:${getWordFontSize(board.answers[r][c])}px">${board.answers[r][c]}</div>${scoreHtml}`;
           // Make revealed cells explicitly unfocusable and non-interactive for accessibility
           cell.tabIndex = -1;
           cell.setAttribute('aria-disabled', 'true');
