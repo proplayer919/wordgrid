@@ -302,7 +302,7 @@ aside.sidebar {
   font-weight: 600;
 }
 
-.dock > button {
+.dock>button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -407,12 +407,20 @@ aside.sidebar {
 
 .modal-body input {
   width: 100%;
-  padding: 8px;
-  margin-top: 8px;
+  padding: 10px 12px;
+  margin-top: 6px;
   border-radius: 8px;
-  border: none;
-  background: #1f1e24;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
   color: #fff;
+  font-size: 15px;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.25s ease;
+}
+
+.modal-body input:focus {
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .modal-controls {
