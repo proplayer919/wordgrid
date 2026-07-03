@@ -1,6 +1,6 @@
 .app {
   width: 100%;
-  max-width: 1100px;
+  max-width: 912px;
   background: transparent;
   border-radius: 12px;
   padding: 18px 0;
@@ -27,7 +27,7 @@
 main {
   display: flex;
   align-items: flex-start;
-  gap: 24px;
+  gap: 100px;
   margin-top: 8px;
   padding: 0 18px;
 }
