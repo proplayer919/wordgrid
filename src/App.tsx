@@ -98,6 +98,7 @@ function App() {
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null);
   const [dailyCountdown, setDailyCountdown] = useState(() => getTimeUntilNextDailyLevel());
   const guessInputRef = useRef<HTMLInputElement | null>(null);
+  const wasGuessModalOpen = useRef(false);
 
   useEffect(() => {
     setGuessModal(null);
@@ -107,10 +108,12 @@ function App() {
   }, [mode]);
 
   useEffect(() => {
-    if (guessModal) {
+    const isOpen = guessModal !== null;
+    if (isOpen && !wasGuessModalOpen.current) {
       guessInputRef.current?.focus();
       guessInputRef.current?.select();
     }
+    wasGuessModalOpen.current = isOpen;
   }, [guessModal]);
 
   useEffect(() => {
