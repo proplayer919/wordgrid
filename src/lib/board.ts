@@ -23,6 +23,7 @@ export class Board {
   readonly boardGameMode: GameMode;
   guessedWords: string[] = [];
   usedWords: Set<string> = new Set();
+  bestWords: Set<string> = new Set();
   totalScore: number = 0;
   maxScore: number = 0;
 
@@ -63,8 +64,12 @@ export class Board {
           validWords = getValidWordsForConditions(rowCondition, colCondition);
         }
 
-        cell.bestWord = getBestWordForCell(cell, validWords) || '';
-        cell.bestScore = cell.bestWord ? scoreWord(cell.bestWord, validWords) : 0;
+        const validWordsWithoutUsedBestWords = validWords.filter(word => !this.bestWords.has(word));
+
+        cell.bestWord = getBestWordForCell(cell, validWordsWithoutUsedBestWords) || '';
+        cell.bestScore = cell.bestWord ? scoreWord(cell.bestWord, validWordsWithoutUsedBestWords) : 0;
+
+        this.bestWords.add(cell.bestWord);
 
         if (!this.grid[row]) {
           this.grid[row] = [];
