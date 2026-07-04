@@ -2,9 +2,9 @@
   --bg: #272730;
   --muted: #9aa0b3;
   --accent: #7d71ff;
+  --accent-2: #5a4ee6;
   --tile: #22212a;
   --glass: #2f2b36;
-  --success: #2c7bd9;
   --cell-size: 120px;
   color-scheme: dark;
 }

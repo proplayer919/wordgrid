@@ -84,3 +84,15 @@ export function createDateString(date: Date): string {
   const year = date.getFullYear();
   return `${day}-${month}-${year}`;
 }
+
+export function textSizeForWord(word: string): string {
+  if (word.length <= 4) {
+    return '20px';
+  } else if (word.length <= 6) {
+    return '18px';
+  } else if (word.length <= 8) {
+    return '16px';
+  } else {
+    return '14px';
+  }
+}

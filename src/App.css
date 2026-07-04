@@ -159,13 +159,13 @@ main {
 }
 
 .cell.revealed {
-  background: linear-gradient(180deg, var(--success), #155a9b);
+  background: var(--accent);
   color: white;
   cursor: default;
 }
 
 .cell.perfect {
-  background: linear-gradient(180deg, #1e8f7b, #114f78);
+  background: linear-gradient(135deg, var(--accent-2), var(--accent));
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -183,13 +183,6 @@ main {
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-.cell.perfect .perfect-word {
-  position: relative;
-  z-index: 1;
-  font-size: 15px;
-  color: #ffffff;
 }
 
 aside.sidebar {

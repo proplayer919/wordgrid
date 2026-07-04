@@ -5,7 +5,7 @@ import './App.css'
 import { IconClock, IconHash, IconHistory, IconQuestionMark, IconRotate, IconShare, IconStarFilled, IconX } from '@tabler/icons-react'
 import { Board, getValidWordsForConditions } from './lib/board';
 import type { GameMode } from './lib/constants';
-import { Condition, createSeedFromString, parseSeedString } from './lib/utils';
+import { Condition, createSeedFromString, parseSeedString, textSizeForWord } from './lib/utils';
 import { scoreWord } from './lib/score';
 import { loadDailyBoard, loadInfiniteBoard, saveDailyBoard, saveInfiniteBoard } from './lib/store';
 import { WORDS } from './lib/data';
@@ -325,6 +325,11 @@ function App() {
 
     const cell = board.grid[row][col];
 
+    if (normalizedWord === "!exact") {
+      console.log(`Exact word for cell [${row}, ${col}]: ${cell.bestWord}`);
+      return { success: true, message: 'Exact word revealed in console' };
+    }
+
     if (board.usedWords.has(normalizedWord)) {
       return { success: false, message: 'This word has already been used somewhere else' };
     }
@@ -393,17 +398,23 @@ function App() {
                           const isPerfectCell = Boolean(cell.word && cell.word === cell.bestWord);
                           let cellContent = <span className="word">?</span>;
 
+                          cell.word = cell.word || "";
+
                           if (cell.word) {
                             cellContent = isPerfectCell ? (
                               <>
                                 <span className="perfect-label">Perfect</span>
-                                <span className="perfect-word">{cell.word}</span>
+                                <span className="word" style={{ fontSize: textSizeForWord(cell.word) }}>
+                                  {cell.word}
+                                </span>
                                 <span className="cell-score">+{cell.score}</span>
                                 <span className="perfect-firework-layer" aria-hidden="true" />
                               </>
                             ) : (
                               <>
-                                <span className="word">{cell.word}</span>
+                                <span className="word" style={{ fontSize: textSizeForWord(cell.word) }}>
+                                  {cell.word}
+                                </span>
                                 <span className="cell-score">+{cell.score}</span>
                               </>
                             );
