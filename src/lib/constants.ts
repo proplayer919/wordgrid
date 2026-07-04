@@ -1,10 +1,8 @@
 import { Condition } from "./utils";
 
-export const DIFFICULTY_KEY = 'wordgrid:difficulty';
 export const INFINITE_BOARD_KEY = 'wordgrid:infinite:current';
 export const BOARD_SEED_LENGTH = 8;
 export const BOARD_SEED_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
-export const CHEAT_CODE = '!opensesame';
 
 export function dailyStorageKey(dateStr: string): string {
   return `wordgrid:daily:${dateStr}`;
@@ -48,7 +46,7 @@ export const CONDITIONS = [
   new Condition("has_st", "Contains 'st'", (w: string) => /st/i.test(w)),
   new Condition("has_ing", "Contains 'ing'", (w: string) => /ing/i.test(w)),
 
-  new Condition("double_vowel", "Double vowel (ea, oo, etc.)", (w: string) => /[aeiou]{2}/i.test(w)),
+  new Condition("double_vowel", "Double vowel", (w: string) => /[aeiou]{2}/i.test(w)),
   new Condition("consonant_heavy", "Fewer than 2 vowels", (w: string) => (w.match(/[aeiou]/gi) || []).length < 2),
   new Condition("palindrome", "Palindrome", (w: string) => {
     const cleaned = w.toLowerCase().replace(/[^a-z]/g, '');
