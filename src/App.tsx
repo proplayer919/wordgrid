@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import logo from './assets/logo.png'
 import './App.css'
 
-import { IconClock, IconHash, IconHistory, IconQuestionMark, IconRotate, IconShare, IconStarFilled, IconX } from '@tabler/icons-react'
-import { Board, getValidWordsForConditions } from './lib/board';
+import { IconBug, IconClock, IconHash, IconHistory, IconQuestionMark, IconRotate, IconShare, IconStarFilled, IconX } from '@tabler/icons-react'
+import { Board, getBoardGenDebugStats, clearBoardGenDebugStats, getValidWordsForConditions, type DebugStats } from './lib/board';
 import type { GameMode } from './lib/constants';
 import { Condition, createSeedFromString, parseSeedString, textSizeForWord } from './lib/utils';
 import { scoreWord } from './lib/score';
@@ -96,6 +96,8 @@ function App() {
   const [guessModal, setGuessModal] = useState<GuessModalState | null>(null);
   const [messageModal, setMessageModal] = useState<MessageModalState | null>(null);
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null);
+  const [debugModal, setDebugModal] = useState(false);
+  const [debugStats, setDebugStats] = useState<DebugStats | null>(null);
   const [dailyCountdown, setDailyCountdown] = useState(() => getTimeUntilNextDailyLevel());
   const guessInputRef = useRef<HTMLInputElement | null>(null);
   const wasGuessModalOpen = useRef(false);
@@ -145,7 +147,11 @@ function App() {
           closeConfirmModal();
         }
 
-        if (messageModal || guessModal || confirmModal) {
+        if (debugModal) {
+          closeDebugModal();
+        }
+
+        if (messageModal || guessModal || confirmModal || debugModal) {
           event.preventDefault();
         }
         return;
@@ -165,7 +171,7 @@ function App() {
 
     globalThis.addEventListener('keydown', handleKeyDown);
     return () => globalThis.removeEventListener('keydown', handleKeyDown);
-  }, [confirmModal, guessModal, messageModal]);
+  }, [confirmModal, guessModal, messageModal, debugModal]);
 
   const persistBoard = (nextBoard: Board, persistEmptyInfinite = false) => {
     setBoard(nextBoard);
@@ -309,6 +315,20 @@ function App() {
 
   const closeConfirmModal = () => {
     setConfirmModal(null);
+  };
+
+  const openDebugModal = () => {
+    setDebugStats(getBoardGenDebugStats());
+    setDebugModal(true);
+  };
+
+  const closeDebugModal = () => {
+    setDebugModal(false);
+  };
+
+  const handleClearDebugStats = () => {
+    clearBoardGenDebugStats();
+    setDebugStats(null);
   };
 
   const guessWord = (row: number, col: number, word: string) => {
@@ -509,6 +529,10 @@ function App() {
                   <IconHistory width={15} />
                   <span className="sr-only">Reset Board</span>
                 </button>
+                <button type="button" className="dock-action" title="Debug stats" aria-label="Debug stats" onClick={openDebugModal}>
+                  <IconBug width={15} />
+                  <span className="sr-only">Debug Stats</span>
+                </button>
               </div>
             </div>
           </aside>
@@ -581,6 +605,40 @@ function App() {
                 <button type="button" onClick={() => { confirmModal.onConfirm(); }}>{confirmModal.confirmLabel}</button>
                 <button type="button" className="secondary" onClick={closeConfirmModal}>Cancel</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {debugModal && (
+        <div className="modal" aria-hidden="false" onClick={closeDebugModal}>
+          <div className="modal-content modal-content--debug" aria-modal="true" role="dialog" aria-labelledby="debugModalTitle" onClick={(event) => event.stopPropagation()}>
+            <button className="modal-close" aria-label="Close debug modal" type="button" onClick={closeDebugModal}>
+              <IconX width={20} />
+            </button>
+            <div className="modal-header">
+              <div id="debugModalTitle">Debug Stats</div>
+            </div>
+            <div className="modal-body">
+              {debugStats ? (
+                <>
+                  <dl className="debug-list">
+                    <div><dt>last</dt><dd>{debugStats.last.toFixed(2)} ms</dd></div>
+                    <div><dt>min</dt><dd>{debugStats.min.toFixed(2)} ms</dd></div>
+                    <div><dt>max</dt><dd>{debugStats.max.toFixed(2)} ms</dd></div>
+                    <div><dt>avg</dt><dd>{debugStats.mean.toFixed(2)} ms</dd></div>
+                    <div><dt>median</dt><dd>{debugStats.median.toFixed(2)} ms</dd></div>
+                    <div><dt>p95</dt><dd>{debugStats.p95.toFixed(2)} ms</dd></div>
+                    <div><dt>p99</dt><dd>{debugStats.p99.toFixed(2)} ms</dd></div>
+                    <div><dt>n</dt><dd>{debugStats.count}</dd></div>
+                  </dl>
+                  <div className="modal-controls">
+                    <button type="button" className="secondary" onClick={handleClearDebugStats}>Clear</button>
+                  </div>
+                </>
+              ) : (
+                <p className="modal-copy">No data yet.</p>
+              )}
             </div>
           </div>
         </div>

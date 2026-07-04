@@ -5,6 +5,53 @@ import { createDateString, createSeedString, mulberry32, pickRandom, type Condit
 
 const CONDITION_WORDS_CACHE: Map<string, string[]> = new Map();
 const VALID_WORDS_CACHE: Map<string, string[]> = new Map();
+const MAX_SAMPLES = 500;
+const _boardGenSamples: number[] = [];
+
+export type DebugStats = {
+  count: number;
+  min: number;
+  max: number;
+  mean: number;
+  median: number;
+  p95: number;
+  p99: number;
+  last: number;
+};
+
+function recordBoardGenTime(ms: number): void {
+  _boardGenSamples.push(ms);
+  if (_boardGenSamples.length > MAX_SAMPLES) {
+    _boardGenSamples.splice(0, _boardGenSamples.length - MAX_SAMPLES);
+  }
+}
+
+export function getBoardGenDebugStats(): DebugStats | null {
+  if (_boardGenSamples.length === 0) return null;
+
+  const sorted = [..._boardGenSamples].sort((a, b) => a - b);
+  const n = sorted.length;
+  const percentile = (p: number) => {
+    const idx = Math.ceil((p / 100) * n) - 1;
+    return sorted[Math.max(0, Math.min(n - 1, idx))];
+  };
+  const mean = _boardGenSamples.reduce((s, v) => s + v, 0) / n;
+
+  return {
+    count: n,
+    min: sorted[0],
+    max: sorted[n - 1],
+    mean,
+    median: percentile(50),
+    p95: percentile(95),
+    p99: percentile(99),
+    last: _boardGenSamples[_boardGenSamples.length - 1],
+  };
+}
+
+export function clearBoardGenDebugStats(): void {
+  _boardGenSamples.splice(0, _boardGenSamples.length);
+}
 
 function pickUniqueCondition(random: () => number, excludedConditions: Condition[]): Condition {
   const excludedIds = new Set(excludedConditions.map((condition) => condition.id));
@@ -28,6 +75,7 @@ export class Board {
   maxScore: number = 0;
 
   constructor(seed: number, boardGameMode: GameMode) {
+    const _genStart = performance.now();
     this.seed = seed;
     this.boardGameMode = boardGameMode;
     this.seedString = boardGameMode === 'daily' ? createDateString(new Date()) : createSeedString(seed);
@@ -79,6 +127,7 @@ export class Board {
     }
 
     this.maxScore = this.grid.flat().reduce((sum, cell) => sum + cell.bestScore, 0);
+    recordBoardGenTime(performance.now() - _genStart);
   }
 
   getSaveString(): string {
