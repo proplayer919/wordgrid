@@ -1,12 +1,7 @@
 import { Condition } from "./utils";
 
-export const INFINITE_BOARD_KEY = 'wordgrid:infinite:current';
 export const BOARD_SEED_LENGTH = 8;
 export const BOARD_SEED_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
-
-export function dailyStorageKey(dateStr: string): string {
-  return `wordgrid:daily:${dateStr}`;
-}
 
 export const CONDITIONS = [
   new Condition("length_3", "3 letters", (w: string) => w.length === 3),
