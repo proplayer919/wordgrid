@@ -326,8 +326,8 @@ function App() {
     const cell = board.grid[row][col];
 
     if (normalizedWord === "!exact") {
-      console.log(`Exact word for cell [${row}, ${col}]: ${cell.bestWord}`);
-      return { success: true, message: 'Exact word revealed in console' };
+      openMessageModal('Exact word', `The exact word for this cell is: "${cell.bestWord}"`);
+      return { success: true, message: 'Exact word revealed' };
     }
 
     if (board.usedWords.has(normalizedWord)) {
