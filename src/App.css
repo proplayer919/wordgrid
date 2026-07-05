@@ -199,7 +199,15 @@ aside.sidebar {
   border-radius: 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.info-top,
+.info-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .info-row {

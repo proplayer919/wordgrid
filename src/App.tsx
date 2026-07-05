@@ -487,73 +487,77 @@ function App() {
 
           <aside className="sidebar">
             <div className="board-info">
-              <div className="info-row">
-                <span className="icon" aria-hidden="true">
-                  <IconHash width={20} />
-                </span>
-                <span className="value">{board ? board.seedString : '------'}</span>
-              </div>
-
-              <div className="info-row mode-row">
-                <div className="mode-toggle" role="tablist" aria-label="Game mode">
-                  <button className={`mode-btn ${mode === 'daily' ? 'active' : ''}`} role="tab" aria-selected="true" onClick={() => setMode('daily')}>
-                    Daily
-                  </button>
-                  <button className={`mode-btn ${mode === 'infinite' ? 'active' : ''}`} role="tab" aria-selected="false" onClick={() => setMode('infinite')}>
-                    Infinite
-                  </button>
-                </div>
-              </div>
-
-              {mode === 'daily' && (
+              <div className="info-top">
                 <div className="info-row">
                   <span className="icon" aria-hidden="true">
-                    <IconClock width={20} />
+                    <IconHash width={20} />
                   </span>
-                  <span className="value">{dailyCountdown}</span>
+                  <span className="value">{board ? board.seedString : '------'}</span>
                 </div>
-              )}
 
-              <div className="info-row">
-                <span className="icon" aria-hidden="true">
-                  <IconQuestionMark width={20} />
-                </span>
-                <span className="value">{(() => {
-                  const guesses = board ? board.guessedWords.length : 0;
-                  const guessText = guesses === 1 ? 'guess' : 'guesses';
-                  return `${guesses} ${guessText}`;
-                })()}</span>
+                <div className="info-row mode-row">
+                  <div className="mode-toggle" role="tablist" aria-label="Game mode">
+                    <button className={`mode-btn ${mode === 'daily' ? 'active' : ''}`} role="tab" aria-selected="true" onClick={() => setMode('daily')}>
+                      Daily
+                    </button>
+                    <button className={`mode-btn ${mode === 'infinite' ? 'active' : ''}`} role="tab" aria-selected="false" onClick={() => setMode('infinite')}>
+                      Infinite
+                    </button>
+                  </div>
+                </div>
+
+                {mode === 'daily' && (
+                  <div className="info-row">
+                    <span className="icon" aria-hidden="true">
+                      <IconClock width={20} />
+                    </span>
+                    <span className="value">{dailyCountdown}</span>
+                  </div>
+                )}
+
+                <div className="info-row">
+                  <span className="icon" aria-hidden="true">
+                    <IconQuestionMark width={20} />
+                  </span>
+                  <span className="value">{(() => {
+                    const guesses = board ? board.guessedWords.length : 0;
+                    const guessText = guesses === 1 ? 'guess' : 'guesses';
+                    return `${guesses} ${guessText}`;
+                  })()}</span>
+                </div>
+
+                <div className="info-row">
+                  <span className="icon" aria-hidden="true">
+                    <IconStarFilled width={20} />
+                  </span>
+                  <span className="value">{board ? board.totalScore : 0} / {board ? board.maxScore : 0} ({board ? Math.round((board.totalScore / board.maxScore) * 100) : 0}%)</span>
+                </div>
               </div>
 
-              <div className="info-row">
-                <span className="icon" aria-hidden="true">
-                  <IconStarFilled width={20} />
-                </span>
-                <span className="value">{board ? board.totalScore : 0} / {board ? board.maxScore : 0} ({board ? Math.round((board.totalScore / board.maxScore) * 100) : 0}%)</span>
-              </div>
-
-              {mode === 'infinite' && (
-                <button className="reroll" title="Reroll board" onClick={rerollInfiniteBoard}>
-                  <IconRotate width={15} />
-                  Reroll
-                </button>
-              )}
-
-              <div className="dock">
+              <div className="info-bottom">
                 {mode === 'infinite' && (
-                  <button type="button" className="dock-action" title="Share infinite puzzle" aria-label="Share infinite puzzle" onClick={() => { void copyShareLink(); }}>
-                    <IconShare width={15} />
-                    <span className="sr-only">Share</span>
+                  <button className="reroll" title="Reroll board" onClick={rerollInfiniteBoard}>
+                    <IconRotate width={15} />
+                    Reroll
                   </button>
                 )}
-                <button type="button" className="dock-action" title="Reset board" aria-label="Reset board" onClick={openResetConfirmModal}>
-                  <IconHistory width={15} />
-                  <span className="sr-only">Reset Board</span>
-                </button>
-                <button type="button" className="dock-action" title="Debug stats" aria-label="Debug stats" onClick={openDebugModal}>
-                  <IconBug width={15} />
-                  <span className="sr-only">Debug Stats</span>
-                </button>
+
+                <div className="dock">
+                  {mode === 'infinite' && (
+                    <button type="button" className="dock-action" title="Share infinite puzzle" aria-label="Share infinite puzzle" onClick={() => { void copyShareLink(); }}>
+                      <IconShare width={15} />
+                      <span className="sr-only">Share</span>
+                    </button>
+                  )}
+                  <button type="button" className="dock-action" title="Reset board" aria-label="Reset board" onClick={openResetConfirmModal}>
+                    <IconHistory width={15} />
+                    <span className="sr-only">Reset Board</span>
+                  </button>
+                  <button type="button" className="dock-action" title="Debug stats" aria-label="Debug stats" onClick={openDebugModal}>
+                    <IconBug width={15} />
+                    <span className="sr-only">Debug Stats</span>
+                  </button>
+                </div>
               </div>
             </div>
           </aside>
