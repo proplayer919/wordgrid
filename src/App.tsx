@@ -202,18 +202,19 @@ function App() {
     }
 
     if (gameMode === 'infinite') {
-      const sharedSeed = getInfiniteSeedFromUrl();
-      if (sharedSeed !== null) {
-        const sharedBoard = new Board(sharedSeed, 'infinite');
-        setBoard(sharedBoard);
-        updateBoardUrl('infinite', sharedBoard.seedString);
-        return;
-      }
-
       const savedBoard = loadInfiniteBoard();
+      const sharedSeed = getInfiniteSeedFromUrl();
+
       if (savedBoard) {
         setBoard(savedBoard);
         updateBoardUrl('infinite', savedBoard.seedString);
+        return;
+      }
+
+      if (sharedSeed) {
+        const sharedBoard = new Board(sharedSeed, 'infinite');
+        setBoard(sharedBoard);
+        updateBoardUrl('infinite', sharedBoard.seedString);
         return;
       }
     }
