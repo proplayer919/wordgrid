@@ -942,7 +942,12 @@ function App() {
                 <span
                   className="mono clickable"
                   onClick={() => {
-                    window.open(COMMIT === '$COMMIT_HASH' ? 'http://github.com/wordgrid-game/wordgrid' : `https://github.com/wordgrid-game/wordgrid/commit/${COMMIT}`, '_blank');
+                    window.open(
+                      COMMIT === '$COMMIT_HASH'
+                        ? 'http://github.com/wordgrid-game/wordgrid'
+                        : `https://github.com/wordgrid-game/wordgrid/commit/${COMMIT}`,
+                      '_blank'
+                    );
                   }}
                 >
                   {COMMIT === '$COMMIT_HASH' ? 'dev-build' : COMMIT.substring(0, 7)}
