@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import logo from './assets/logo.png'
 import './App.css'
 
-import { IconBug, IconBulb, IconClock, IconHash, IconHistory, IconQuestionMark, IconRotate, IconShare, IconStarFilled, IconX } from '@tabler/icons-react'
+import { IconBug, IconBulb, IconClock, IconHash, IconHistory, IconInfoCircle, IconQuestionMark, IconRotate, IconShare, IconStarFilled, IconX } from '@tabler/icons-react'
 import { Board, getBoardGenDebugStats, clearBoardGenDebugStats, getValidWordsForConditions, type DebugStats, type Cell, getBestWordForCell } from './lib/board';
 import type { GameMode } from './lib/constants';
 import { createSeedFromString, parseSeedString, textSizeForWord } from './lib/utils';
@@ -95,6 +95,7 @@ function App() {
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null);
   const [debugModal, setDebugModal] = useState(false);
   const [debugStats, setDebugStats] = useState<DebugStats | null>(null);
+  const [infoModal, setInfoModal] = useState(false);
   const [dailyCountdown, setDailyCountdown] = useState(() => getTimeUntilNextDailyLevel());
   const guessInputRef = useRef<HTMLInputElement | null>(null);
   const wasGuessModalOpen = useRef(false);
@@ -347,6 +348,14 @@ function App() {
     setDebugModal(false);
   };
 
+  const openInfoModal = () => {
+    setInfoModal(true);
+  }
+
+  const closeInfoModal = () => {
+    setInfoModal(false);
+  }
+
   const handleClearDebugStats = () => {
     clearBoardGenDebugStats();
     setDebugStats(null);
@@ -449,7 +458,6 @@ function App() {
                                   {cell.word}
                                 </span>
                                 <span className="cell-score">+{cell.score}</span>
-                                <span className="perfect-firework-layer" aria-hidden="true" />
                               </>
                             ) : (
                               <>
@@ -552,6 +560,10 @@ function App() {
                 <button type="button" className="dock-action" title="Debug stats" aria-label="Debug stats" onClick={openDebugModal}>
                   <IconBug width={15} />
                   <span className="sr-only">Debug Stats</span>
+                </button>
+                <button type="button" className="dock-action" title="Info" aria-label="Info" onClick={openInfoModal}>
+                  <IconInfoCircle width={15} />
+                  <span className="sr-only">Info</span>
                 </button>
               </div>
             </div>
@@ -673,6 +685,24 @@ function App() {
               ) : (
                 <p className="modal-copy">No data yet.</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {infoModal && (
+        <div className="modal" aria-hidden="false" onClick={closeInfoModal}>
+          <div className="modal-content" aria-modal="true" role="dialog" aria-labelledby="infoModalTitle" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-actions">
+              <button className="modal-action" aria-label="Close info modal" type="button" onClick={closeInfoModal}>
+                <IconX width={20} />
+              </button>
+            </div>
+            <div className="modal-header">
+              <div id="infoModalTitle">WordGrid Info</div>
+            </div>
+            <div className="modal-body">
+              <p className="modal-copy">WordGrid version {import.meta.env.APP_VERSION}</p>
             </div>
           </div>
         </div>
