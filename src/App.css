@@ -424,6 +424,10 @@ aside.sidebar {
   border-color: rgba(255, 255, 255, 0.3);
 }
 
+.modal-body input.invalid {
+  border-color: #ff4d4f;
+}
+
 .modal-sub {
   display: block;
   margin-top: 4px;
@@ -448,6 +452,11 @@ button {
 
 button.secondary {
   background: #6f6b7a;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .modal-content--debug {

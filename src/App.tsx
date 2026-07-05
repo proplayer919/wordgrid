@@ -581,6 +581,7 @@ function App() {
                 <input
                   ref={guessInputRef}
                   id="guessInput"
+                  className={guessModal.value && !WORDS.includes(guessModal.value.toLowerCase()) ? 'invalid' : ''}
                   autoComplete="off"
                   value={guessModal.value}
                   onChange={(event) => {
@@ -591,8 +592,7 @@ function App() {
                   <span className="modal-sub">Score: {scoreWord(guessModal.value, getValidWordsForConditions(guessModal.cell.rowCondition, guessModal.cell.colCondition))} / {scoreWord(getBestWordForCell(guessModal.cell), getValidWordsForConditions(guessModal.cell.rowCondition, guessModal.cell.colCondition))}</span>
                 )}
                 <div className="modal-controls">
-                  <button type="submit">Guess</button>
-                  <button type="button" className="secondary" onClick={closeGuessModal}>Cancel</button>
+                  <button type="submit" disabled={!!guessModal.value && !WORDS.includes(guessModal.value.toLowerCase())}>Guess</button>
                 </div>
               </form>
             </div>
