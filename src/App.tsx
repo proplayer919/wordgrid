@@ -2,19 +2,16 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import logo from './assets/logo.png'
 import './App.css'
 
-import { IconBug, IconClock, IconHash, IconHistory, IconQuestionMark, IconRotate, IconShare, IconStarFilled, IconX } from '@tabler/icons-react'
-import { Board, getBoardGenDebugStats, clearBoardGenDebugStats, getValidWordsForConditions, type DebugStats } from './lib/board';
+import { IconBug, IconBulb, IconClock, IconHash, IconHistory, IconQuestionMark, IconRotate, IconShare, IconStarFilled, IconX } from '@tabler/icons-react'
+import { Board, getBoardGenDebugStats, clearBoardGenDebugStats, getValidWordsForConditions, type DebugStats, type Cell, getBestWordForCell } from './lib/board';
 import type { GameMode } from './lib/constants';
-import { Condition, createSeedFromString, parseSeedString, textSizeForWord } from './lib/utils';
+import { createSeedFromString, parseSeedString, textSizeForWord } from './lib/utils';
 import { scoreWord } from './lib/score';
 import { loadDailyBoard, loadInfiniteBoard, saveDailyBoard, saveInfiniteBoard } from './lib/store';
 import { WORDS } from './lib/data';
 
 type GuessModalState = {
-  row: number;
-  col: number;
-  rowCondition: Condition;
-  colCondition: Condition;
+  cell: Cell;
   value: string;
 };
 
@@ -280,11 +277,21 @@ function App() {
     if (!board) return;
 
     setMessageModal(null);
-    setGuessModal({ row, col, rowCondition: board.grid[row][col].rowCondition, colCondition: board.grid[row][col].colCondition, value: '' });
+    setGuessModal({ cell: board.grid[row][col], value: '' });
   };
 
   const closeGuessModal = () => {
     setGuessModal(null);
+  };
+
+  const getHintForGuessModal = () => {
+    if (!board || !guessModal) return;
+
+    const { cell } = guessModal;
+
+    if (cell.bestWord) {
+      openMessageModal('Hint', `The best word for this cell is: "${cell.bestWord}"`);
+    }
   };
 
   const openMessageModal = (title: string, message: string) => {
@@ -384,7 +391,7 @@ function App() {
     event.preventDefault();
     if (!guessModal) return;
 
-    const result = guessWord(guessModal.row, guessModal.col, guessModal.value);
+    const result = guessWord(guessModal.cell.row, guessModal.cell.col, guessModal.value);
 
     if (result.success) {
       closeGuessModal();
@@ -543,14 +550,19 @@ function App() {
       {guessModal && (
         <div className="modal" aria-hidden="false" onClick={closeGuessModal}>
           <div className="modal-content" aria-modal="true" role="dialog" aria-labelledby="guessModalTitle" onClick={(event) => event.stopPropagation()}>
-            <button className="modal-close" aria-label="Close guess modal" type="button" onClick={closeGuessModal}>
-              <IconX width={20} />
-            </button>
+            <div className="modal-actions">
+              <button className="modal-action" aria-label="Get a hint" type="button" onClick={getHintForGuessModal}>
+                <IconBulb width={20} />
+              </button>
+              <button className="modal-action" aria-label="Close guess modal" type="button" onClick={closeGuessModal}>
+                <IconX width={20} />
+              </button>
+            </div>
             <div className="modal-header">
               <div id="guessModalTitle">Enter your guess</div>
             </div>
             <div className="modal-body">
-              <p className="modal-copy">{guessModal.rowCondition.label} & {guessModal.colCondition.label}</p>
+              <p className="modal-copy">{guessModal.cell.rowCondition.label} & {guessModal.cell.colCondition.label}</p>
               <form onSubmit={handleGuessSubmit}>
                 <label htmlFor="guessInput">Word</label>
                 <input
@@ -562,6 +574,9 @@ function App() {
                     setGuessModal((current) => current ? { ...current, value: event.target.value } : current);
                   }}
                 />
+                {guessModal.value && WORDS.includes(guessModal.value.toLowerCase()) && (
+                  <span className="modal-sub">Score: {scoreWord(guessModal.value, getValidWordsForConditions(guessModal.cell.rowCondition, guessModal.cell.colCondition))} / {scoreWord(getBestWordForCell(guessModal.cell), getValidWordsForConditions(guessModal.cell.rowCondition, guessModal.cell.colCondition))}</span>
+                )}
                 <div className="modal-controls">
                   <button type="submit">Guess</button>
                   <button type="button" className="secondary" onClick={closeGuessModal}>Cancel</button>
@@ -575,9 +590,11 @@ function App() {
       {messageModal && (
         <div className="modal" aria-hidden="false" onClick={closeMessageModal}>
           <div className="modal-content" aria-modal="true" role="dialog" aria-labelledby="messageModalTitle" onClick={(event) => event.stopPropagation()}>
-            <button className="modal-close" aria-label="Close message modal" type="button" onClick={closeMessageModal}>
-              <IconX width={20} />
-            </button>
+            <div className="modal-actions">
+              <button className="modal-action" aria-label="Close message modal" type="button" onClick={closeMessageModal}>
+                <IconX width={20} />
+              </button>
+            </div>
             <div className="modal-header">
               <div id="messageModalTitle">{messageModal.title}</div>
             </div>
@@ -594,9 +611,11 @@ function App() {
       {confirmModal && (
         <div className="modal" aria-hidden="false" onClick={closeConfirmModal}>
           <div className="modal-content" aria-modal="true" role="dialog" aria-labelledby="confirmModalTitle" onClick={(event) => event.stopPropagation()}>
-            <button className="modal-close" aria-label="Close confirmation modal" type="button" onClick={closeConfirmModal}>
-              <IconX width={20} />
-            </button>
+            <div className="modal-actions">
+              <button className="modal-action" aria-label="Close confirmation modal" type="button" onClick={closeConfirmModal}>
+                <IconX width={20} />
+              </button>
+            </div>
             <div className="modal-header">
               <div id="confirmModalTitle">{confirmModal.title}</div>
             </div>
@@ -614,9 +633,11 @@ function App() {
       {debugModal && (
         <div className="modal" aria-hidden="false" onClick={closeDebugModal}>
           <div className="modal-content modal-content--debug" aria-modal="true" role="dialog" aria-labelledby="debugModalTitle" onClick={(event) => event.stopPropagation()}>
-            <button className="modal-close" aria-label="Close debug modal" type="button" onClick={closeDebugModal}>
-              <IconX width={20} />
-            </button>
+            <div className="modal-actions">
+              <button className="modal-action" aria-label="Close debug modal" type="button" onClick={closeDebugModal}>
+                <IconX width={20} />
+              </button>
+            </div>
             <div className="modal-header">
               <div id="debugModalTitle">Debug Stats</div>
             </div>
