@@ -290,7 +290,20 @@ function App() {
     const { cell } = guessModal;
 
     if (cell.bestWord) {
-      openMessageModal('Hint', `The best word for this cell is: "${cell.bestWord}"`);
+      const hintIndex = Math.floor(Math.random() * 4);
+      switch (hintIndex) {
+        case 0:
+          openMessageModal('Hint', `The first letter of the word is: "${cell.bestWord[0]}"`);
+          break;
+        case 1:
+          openMessageModal('Hint', `There are ${getValidWordsForConditions(cell.rowCondition, cell.colCondition).length} possible words for this cell.`);
+          break;
+        case 2:
+          openMessageModal('Hint', `The word has ${cell.bestWord.length} letters.`);
+          break;
+        case 3:
+          openMessageModal('Hint', `The word has ${cell.bestWord.match(/[aeiou]/gi)?.length || 0} vowels and ${cell.bestWord.length - (cell.bestWord.match(/[aeiou]/gi)?.length || 0)} consonants.`);
+      }
     }
   };
 
