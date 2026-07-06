@@ -26,6 +26,22 @@ export type Cell = {
   bestScore: number;
 };
 
+export type TimeConfig = {
+  unlimited: boolean;
+  initialSeconds: number;
+  incrementSeconds: number;
+};
+
+export const TIME_CONFIGS: Record<string, TimeConfig> = {
+  unlimited: { unlimited: true, initialSeconds: 0, incrementSeconds: 0 },
+  marathon: { unlimited: false, initialSeconds: 600, incrementSeconds: 0 },
+  standard: { unlimited: false, initialSeconds: 300, incrementSeconds: 0 },
+  quick: { unlimited: false, initialSeconds: 120, incrementSeconds: 10 },
+  rapid: { unlimited: false, initialSeconds: 60, incrementSeconds: 5 },
+  blitz: { unlimited: false, initialSeconds: 30, incrementSeconds: 3 },
+  bullet: { unlimited: false, initialSeconds: 15, incrementSeconds: 2 },
+};
+
 export class Board {
   static readonly #CONDITION_WORDS_CACHE = new Map<string, string[]>();
   static readonly #VALID_WORDS_CACHE = new Map<string, string[]>();
@@ -38,17 +54,21 @@ export class Board {
   readonly seed: number;
   readonly seedString: string;
   readonly boardGameMode: GameMode;
+  readonly timeConfig: TimeConfig;
 
+  startedAt: Date | null = null;
+  endedAt: Date | null = null;
   guessedWords: string[] = [];
   usedWords: Set<string> = new Set();
   bestWords: Set<string> = new Set();
   totalScore: number = 0;
   maxScore: number = 0;
 
-  constructor(seed: number, boardGameMode: GameMode) {
+  constructor(seed: number, boardGameMode: GameMode, timeConfig: TimeConfig) {
     const genStart = performance.now();
     this.seed = seed;
     this.boardGameMode = boardGameMode;
+    this.timeConfig = timeConfig;
     this.seedString =
       boardGameMode === 'daily' ? createDateString(new Date()) : createSeedString(seed);
 
@@ -99,6 +119,16 @@ export class Board {
     Board.#recordBoardGenTime(performance.now() - genStart);
   }
 
+  getSecondsRemaining(): number {
+    if (this.timeConfig.unlimited) return Infinity;
+    if (!this.startedAt) return this.timeConfig.initialSeconds;
+
+    const endTime = this.endedAt ? this.endedAt.getTime() : Date.now();
+    const elapsedSeconds = Math.floor((endTime - this.startedAt.getTime()) / 1000);
+    const bonusSeconds = this.usedWords.size * this.timeConfig.incrementSeconds;
+    return Math.max(0, this.timeConfig.initialSeconds - elapsedSeconds + bonusSeconds);
+  }
+
   getSaveString(): string {
     const cellStates = this.grid.flat().map(cell => ({
       row: cell.row,
@@ -119,12 +149,13 @@ export class Board {
       totalScore: this.totalScore,
       maxScore: this.maxScore,
       usedWords: Array.from(this.usedWords),
+      timeConfig: this.timeConfig,
     });
   }
 
   static loadFromSaveString(saveString: string): Board {
     const parsed = JSON.parse(saveString);
-    const board = new Board(parsed.seed, parsed.boardGameMode);
+    const board = new Board(parsed.seed, parsed.boardGameMode, parsed.timeConfig);
 
     for (const cellState of parsed.cells) {
       const cell = board.grid[cellState.row][cellState.col];
