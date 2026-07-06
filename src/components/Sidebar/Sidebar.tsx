@@ -106,13 +106,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <>
             <div className="info-row">
               <span className="info-icon" aria-hidden="true">
-                {seedHidden ? (
+                {seedHidden && mode !== 'daily' ? (
                   <IconLock width={20} onClick={() => setSeedHidden(false)} />
                 ) : (
-                  <IconHash width={20} onClick={() => setSeedHidden(true)} />
+                  <IconHash width={20} onClick={() => setSeedHidden(mode !== 'daily')} />
                 )}
               </span>
-              <span className="info-value">{(board && !seedHidden) ? board.seedString : '------'}</span>
+              <span className="info-value">
+                {!board || (mode !== 'daily' && seedHidden) ? '--------' : board.seedString}
+              </span>
             </div>
 
             <div className="info-row mode-row">
