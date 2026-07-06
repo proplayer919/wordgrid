@@ -90,7 +90,7 @@ export class Condition {
     const regex = new RegExp(String.raw`^(?:(?:.*([a-z])(?!.*\1)){${minConsecutive},}.*)$`, 'i');
     return new Condition(
       `consecutiveLetters_${minConsecutive}`,
-      `${discriptorForNumber(minConsecutive)} letters`,
+      `${discriptorForNumber(minConsecutive)} letter`,
       regex
     );
   }

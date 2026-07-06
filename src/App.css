@@ -240,6 +240,7 @@ aside.sidebar {
   font-weight: 600;
   margin-bottom: 6px;
   transition: opacity 0.2s ease;
+  user-select: none;
 }
 
 .analysis-back:hover {
