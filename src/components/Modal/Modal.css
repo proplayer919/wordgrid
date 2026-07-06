@@ -1,0 +1,138 @@
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 60;
+}
+
+.modal-content {
+  width: 420px;
+  background: rgba(30, 30, 36);
+  padding: 16px;
+  border-radius: 10px;
+  position: relative;
+}
+
+.modal-actions {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.modal-action {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.modal-header {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.modal-body label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.modal-copy {
+  margin: 0;
+  color: #e7e9ef;
+  line-height: 1.45;
+}
+
+.modal-body input {
+  width: 100%;
+  padding: 10px 12px;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-size: 15px;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.25s ease;
+}
+
+.modal-body input:focus {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.modal-body input.invalid {
+  border-color: #ff4d4f;
+}
+
+.modal-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.modal-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.modal-content--debug {
+  width: 460px;
+}
+
+.debug-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.debug-list > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.debug-list > div:last-child {
+  border-bottom: none;
+}
+
+.debug-list dt {
+  font-family: var(--font-family-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.debug-list dd {
+  margin: 0;
+  font-family: var(--font-family-mono);
+  font-size: 13px;
+  color: #e7e9ef;
+}
+
+@media (max-width: 900px) {
+  .modal-content {
+    width: calc(100% - 32px);
+    max-width: 420px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-content {
+    width: calc(100% - 20px);
+    border-radius: 8px;
+    padding: 12px;
+  }
+}

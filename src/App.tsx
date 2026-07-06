@@ -1,47 +1,18 @@
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
-import logo from './assets/logo.png';
-import './App.css';
-
-import {
-  IconArrowLeft,
-  IconBrain,
-  IconBug,
-  IconBulb,
-  IconClock,
-  IconGitCommit,
-  IconHash,
-  IconHistory,
-  IconInfoCircle,
-  IconQuestionMark,
-  IconRotate,
-  IconShare,
-  IconStarFilled,
-  IconX,
-} from '@tabler/icons-react';
 import { Board, type DebugStats, type Cell, TIME_CONFIGS } from './lib/board';
 import type { GameMode } from './lib/constants';
-import {
-  createSeedFromString,
-  formatDateAsCountdown,
-  formatSecondsAsCountdown,
-  parseSeedString,
-  textSizeForWord,
-} from './lib/utils';
+import { createSeedFromString, formatDateAsCountdown, parseSeedString } from './lib/utils';
 import { scoreWord } from './lib/score';
 import { loadDailyBoard, loadInfiniteBoard, saveDailyBoard, saveInfiniteBoard } from './lib/store';
 import { WORDS } from './lib/data';
-import { BUILD_TIMESTAMP, COMMIT, COMMIT_NUMBER_THIS_MONTH } from './version';
 
-type GuessModalState = {
-  cell: Cell;
-  value: string;
-};
+import { BoardGrid } from './components/BoardGrid/BoardGrid';
+import { Sidebar } from './components/Sidebar/Sidebar';
+import { ModalsContainer } from './components/Modal/ModalsContainer';
+import './App.css';
 
-type MessageModalState = {
-  title: string;
-  message: string;
-};
-
+type GuessModalState = { cell: Cell; value: string };
+type MessageModalState = { title: string; message: string };
 type ConfirmModalState = {
   title: string;
   message: string;
@@ -50,41 +21,26 @@ type ConfirmModalState = {
 };
 
 function getInitialMode(): GameMode {
-  if (globalThis.window === undefined) {
-    return 'daily';
-  }
-
+  if (globalThis.window === undefined) return 'daily';
   const searchParams = new URL(globalThis.window.location.href).searchParams;
   return searchParams.get('mode') === 'infinite' || searchParams.has('seed') ? 'infinite' : 'daily';
 }
 
 function getInfiniteSeedFromUrl(): number | null {
-  if (globalThis.window === undefined) {
-    return null;
-  }
-
+  if (globalThis.window === undefined) return null;
   const seedString = new URL(globalThis.window.location.href).searchParams.get('seed');
-  if (!seedString) {
-    return null;
-  }
-
-  return parseSeedString(seedString.toLowerCase());
+  return seedString ? parseSeedString(seedString.toLowerCase()) : null;
 }
 
 function updateBoardUrl(mode: GameMode, seedString?: string): void {
-  if (globalThis.window === undefined) {
-    return;
-  }
-
+  if (globalThis.window === undefined) return;
   const url = new URL(globalThis.window.location.href);
   url.searchParams.set('mode', mode);
-
   if (mode === 'infinite' && seedString) {
     url.searchParams.set('seed', seedString);
   } else {
     url.searchParams.delete('seed');
   }
-
   globalThis.window.history.replaceState({}, '', url.toString());
 }
 
@@ -96,10 +52,8 @@ function buildShareLink(seedString: string): string {
 }
 
 function getTimeUntilNextDailyLevel(): string {
-  const now = new Date();
-  const nextMidnight = new Date(now);
+  const nextMidnight = new Date();
   nextMidnight.setHours(24, 0, 0, 0);
-
   return formatDateAsCountdown(nextMidnight);
 }
 
@@ -114,9 +68,10 @@ function App() {
   const [debugStats, setDebugStats] = useState<DebugStats | null>(null);
   const [infoModal, setInfoModal] = useState(false);
   const [dailyCountdown, setDailyCountdown] = useState(() => getTimeUntilNextDailyLevel());
+  const [secondsRemaining, setSecondsRemaining] = useState(0);
+
   const guessInputRef = useRef<HTMLInputElement | null>(null);
   const wasGuessModalOpen = useRef(false);
-  const [secondsRemaining, setSecondsRemaining] = useState(board?.getSecondsRemaining() || 0);
 
   useEffect(() => {
     setGuessModal(null);
@@ -135,14 +90,8 @@ function App() {
   }, [guessModal]);
 
   useEffect(() => {
-    if (mode !== 'daily') {
-      return;
-    }
-
-    const updateCountdown = () => {
-      setDailyCountdown(getTimeUntilNextDailyLevel());
-    };
-
+    if (mode !== 'daily') return;
+    const updateCountdown = () => setDailyCountdown(getTimeUntilNextDailyLevel());
     updateCountdown();
     const intervalId = globalThis.setInterval(updateCountdown, 1000);
     return () => globalThis.clearInterval(intervalId);
@@ -150,14 +99,11 @@ function App() {
 
   useEffect(() => {
     if (mode === 'daily') return;
-
     setSecondsRemaining(board?.getSecondsRemaining() || 0);
 
     const timer = setInterval(() => {
       const remaining = board?.getSecondsRemaining() || 0;
-
       setSecondsRemaining(remaining);
-
       if (remaining <= 0 || board?.endedAt || analysisMode) {
         clearInterval(timer);
       }
@@ -169,59 +115,38 @@ function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        if (messageModal) {
-          closeMessageModal();
-        }
-
-        if (guessModal) {
-          closeGuessModal();
-        }
-
-        if (confirmModal) {
-          closeConfirmModal();
-        }
-
-        if (debugModal) {
-          closeDebugModal();
-        }
-
-        if (messageModal || guessModal || confirmModal || debugModal) {
-          event.preventDefault();
-        }
+        if (messageModal) closeMessageModal();
+        if (guessModal) closeGuessModal();
+        if (confirmModal) closeConfirmModal();
+        if (debugModal) closeDebugModal();
         return;
       }
-
       if (event.key === 'Enter' && messageModal) {
         closeMessageModal();
         event.preventDefault();
         return;
       }
-
       if (event.key === 'Enter' && confirmModal) {
         confirmModal.onConfirm();
         event.preventDefault();
       }
     };
-
     globalThis.addEventListener('keydown', handleKeyDown);
     return () => globalThis.removeEventListener('keydown', handleKeyDown);
   }, [confirmModal, guessModal, messageModal, debugModal]);
 
   const persistBoard = (nextBoard: Board, persistEmptyInfinite = false) => {
     setBoard(nextBoard);
-
     if (nextBoard.boardGameMode === 'daily') {
       saveDailyBoard(nextBoard);
       updateBoardUrl('daily');
       return;
     }
-
     if (nextBoard.guessedWords.length > 0 || persistEmptyInfinite) {
       saveInfiniteBoard(nextBoard);
       updateBoardUrl('infinite', nextBoard.seedString);
       return;
     }
-
     updateBoardUrl('infinite');
   };
 
@@ -233,18 +158,14 @@ function App() {
         updateBoardUrl('daily');
         return;
       }
-    }
-
-    if (gameMode === 'infinite') {
+    } else {
       const savedBoard = loadInfiniteBoard();
       const sharedSeed = getInfiniteSeedFromUrl();
-
       if (savedBoard) {
         setBoard(savedBoard);
         updateBoardUrl('infinite', savedBoard.seedString);
         return;
       }
-
       if (sharedSeed) {
         const sharedBoard = new Board(sharedSeed, 'infinite', TIME_CONFIGS.unlimited);
         setBoard(sharedBoard);
@@ -259,19 +180,12 @@ function App() {
         : createSeedFromString(`${Date.now()}-${Math.random()}`);
     const newBoard = new Board(seed, gameMode, TIME_CONFIGS.unlimited);
     setBoard(newBoard);
-
-    if (gameMode === 'daily') {
-      saveDailyBoard(newBoard);
-      updateBoardUrl('daily');
-      return;
-    }
-
-    updateBoardUrl('infinite');
+    updateBoardUrl(gameMode, gameMode === 'infinite' ? newBoard.seedString : undefined);
+    if (gameMode === 'daily') saveDailyBoard(newBoard);
   };
 
   const rerollInfiniteBoard = () => {
     if (!board) return;
-
     if (board.guessedWords.length > 0) {
       openConfirmModal({
         title: 'Reroll puzzle?',
@@ -289,28 +203,24 @@ function App() {
       });
       return;
     }
-
-    const nextBoard = new Board(
-      createSeedFromString(`${Date.now()}-${Math.random()}`),
-      'infinite',
-      TIME_CONFIGS.unlimited
+    persistBoard(
+      new Board(
+        createSeedFromString(`${Date.now()}-${Math.random()}`),
+        'infinite',
+        TIME_CONFIGS.unlimited
+      )
     );
-    persistBoard(nextBoard);
   };
 
   const resetCurrentBoard = () => {
     if (!board) return;
-
-    const resetBoard = new Board(board.seed, board.boardGameMode, board.timeConfig);
-    persistBoard(resetBoard, true);
+    persistBoard(new Board(board.seed, board.boardGameMode, board.timeConfig), true);
     closeConfirmModal();
   };
 
   const copyShareLink = async () => {
     if (!board) return;
-
     const shareLink = buildShareLink(board.seedString);
-
     try {
       await navigator.clipboard.writeText(shareLink);
       openMessageModal(
@@ -324,139 +234,85 @@ function App() {
 
   const openGuessModal = (row: number, col: number) => {
     if (!board) return;
-
-    startBoardTimer();
+    if (board.boardGameMode === 'infinite' && !board.timeConfig.unlimited && !board.startedAt) {
+      board.startedAt = new Date();
+    }
     setMessageModal(null);
     setGuessModal({ cell: board.grid[row][col], value: '' });
   };
 
-  const closeGuessModal = () => {
-    setGuessModal(null);
-  };
+  const closeGuessModal = () => setGuessModal(null);
 
   const getHintForGuessModal = () => {
-    if (!board || !guessModal) return;
-
+    if (!board || !guessModal?.cell.bestWord) return;
     const { cell } = guessModal;
-
-    if (cell.bestWord) {
-      const hintIndex = Math.floor(Math.random() * 4);
-      switch (hintIndex) {
-        case 0:
-          openMessageModal('Hint', `The first letter of the best word is '${cell.bestWord[0]}'`);
-          break;
-        case 1:
-          openMessageModal(
-            'Hint',
-            `There are ${Board.getValidWordsForConditions(cell.rowCondition, cell.colCondition).length} possible words for this cell`
-          );
-          break;
-        case 2:
-          openMessageModal('Hint', `The best word has ${cell.bestWord.length} letters`);
-          break;
-        case 3:
-          openMessageModal(
-            'Hint',
-            `The best word has ${cell.bestWord.match(/[aeiou]/gi)?.length || 0} vowels and ${cell.bestWord.length - (cell.bestWord.match(/[aeiou]/gi)?.length || 0)} consonants`
-          );
+    const hintIndex = Math.floor(Math.random() * 4);
+    switch (hintIndex) {
+      case 0:
+        openMessageModal('Hint', `The first letter of the best word is '${cell.bestWord[0]}'`);
+        break;
+      case 1:
+        openMessageModal(
+          'Hint',
+          `There are ${Board.getValidWordsForConditions(cell.rowCondition, cell.colCondition).length} possible words for this cell`
+        );
+        break;
+      case 2:
+        openMessageModal('Hint', `The best word has ${cell.bestWord.length} letters`);
+        break;
+      case 3: {
+        const vowels = cell.bestWord.match(/[aeiou]/gi)?.length || 0;
+        openMessageModal(
+          'Hint',
+          `The best word has ${vowels} vowels and ${cell.bestWord.length - vowels} consonants`
+        );
+        break;
       }
     }
   };
 
-  const openMessageModal = (title: string, message: string) => {
-    setMessageModal({ title, message });
-  };
-
-  const closeMessageModal = () => {
-    setMessageModal(null);
-  };
-
-  const openResetConfirmModal = () => {
-    setGuessModal(null);
-    setMessageModal(null);
-    openConfirmModal({
-      title: 'Reset board?',
-      message: 'This clears your current guesses and restores the puzzle to its initial state.',
-      confirmLabel: 'Reset Board',
-      onConfirm: () => {
-        resetCurrentBoard();
-      },
-    });
-  };
-
+  const openMessageModal = (title: string, message: string) => setMessageModal({ title, message });
+  const closeMessageModal = () => setMessageModal(null);
+  const closeConfirmModal = () => setConfirmModal(null);
   const openConfirmModal = (modal: ConfirmModalState) => {
     setGuessModal(null);
     setMessageModal(null);
     setConfirmModal(modal);
   };
 
-  const closeConfirmModal = () => {
-    setConfirmModal(null);
+  const openResetConfirmModal = () => {
+    openConfirmModal({
+      title: 'Reset board?',
+      message: 'This clears your current guesses and restores the puzzle to its initial state.',
+      confirmLabel: 'Reset Board',
+      onConfirm: resetCurrentBoard,
+    });
   };
 
   const openDebugModal = () => {
     setDebugStats(Board.getBoardGenDebugStats());
     setDebugModal(true);
   };
-
-  const closeDebugModal = () => {
-    setDebugModal(false);
-  };
-
-  const openInfoModal = () => {
-    setInfoModal(true);
-  };
-
-  const closeInfoModal = () => {
-    setInfoModal(false);
-  };
-
-  const enterAnalysisMode = () => {
-    setAnalysisMode(true);
-  };
-
-  const enterNormalMode = () => {
-    setAnalysisMode(false);
-  };
-
-  const handleClearDebugStats = () => {
-    Board.clearBoardGenDebugStats();
-    setDebugStats(null);
-  };
-
-  const startBoardTimer = () => {
-    if (board?.boardGameMode !== 'infinite' || board.timeConfig.unlimited || board.startedAt)
-      return;
-
-    board.startedAt = new Date();
-  };
+  const closeDebugModal = () => setDebugModal(false);
+  const openInfoModal = () => setInfoModal(true);
+  const closeInfoModal = () => setInfoModal(false);
 
   const guessWord = (row: number, col: number, word: string) => {
-    if (!board) {
-      return { success: false, message: 'No board is currently loaded' };
-    }
-
+    if (!board) return { success: false, message: 'No board is currently loaded' };
     const normalizedWord = word.trim().toLowerCase();
-    if (!normalizedWord) {
-      return { success: false, message: 'Please enter a word' };
-    }
+    if (!normalizedWord) return { success: false, message: 'Please enter a word' };
 
     board.guessedWords.push(normalizedWord);
-
     const cell = board.grid[row][col];
 
     if (normalizedWord === '!exact') {
       openMessageModal('Exact word', `The exact word for this cell is: "${cell.bestWord}"`);
       return { success: true, message: 'Exact word revealed' };
     }
-
-    if (board.usedWords.has(normalizedWord)) {
+    if (board.usedWords.has(normalizedWord))
       return { success: false, message: 'This word has already been used somewhere else' };
-    }
-
-    if (!WORDS.includes(normalizedWord)) {
+    if (!WORDS.includes(normalizedWord))
       return { success: false, message: 'This is not a valid word' };
-    }
 
     if (cell.rowCondition.test(normalizedWord) && cell.colCondition.test(normalizedWord)) {
       cell.word = normalizedWord;
@@ -470,7 +326,6 @@ function App() {
 
       if (board.grid.flat().every(c => c.word)) {
         board.endedAt = new Date();
-
         openConfirmModal({
           title: 'Analysis Mode',
           message:
@@ -482,611 +337,64 @@ function App() {
           },
         });
       }
-
       persistBoard(Object.assign(Object.create(Object.getPrototypeOf(board)), board));
-
-      return {
-        success: true,
-        message: `"${normalizedWord}" was placed at row ${row + 1}, column ${col + 1}.`,
-      };
-    } else {
-      return {
-        success: false,
-        message: "This doesn't meet the conditions for the cell",
-      };
+      return { success: true, message: `"${normalizedWord}" was placed.` };
     }
+    return { success: false, message: "This doesn't meet the conditions for the cell" };
   };
 
   const handleGuessSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!guessModal) return;
-
     const result = guessWord(guessModal.cell.row, guessModal.cell.col, guessModal.value);
-
-    if (result.success) {
-      closeGuessModal();
-    } else {
-      openMessageModal('Invalid Guess', result.message);
-    }
+    if (result.success) closeGuessModal();
+    else openMessageModal('Invalid Guess', result.message);
   };
 
   return (
     <>
       <div className="app">
         <main>
-          <div className="boardArea">
-            <div className="grid-wrap">
-              <div className="grid">
-                {board && (
-                  <>
-                    <div className="logo-square">
-                      <img src={logo} alt="WordGrid Logo"></img>
-                    </div>
-                    {board.columns.map(col => (
-                      <div key={col.id} className="col-header">
-                        <strong>{col.label}</strong>
-                      </div>
-                    ))}
-                    {board.rows.map((row, rowIndex) => (
-                      <div key={row.id} className="row">
-                        <div className="row-header">
-                          <strong>{row.label}</strong>
-                        </div>
-                        {board.grid[rowIndex].map(cell => {
-                          const isPerfectCell = Boolean(cell.word && cell.word === cell.bestWord);
-                          let cellContent = <span className="word">?</span>;
-
-                          cell.word = cell.word || '';
-
-                          if (cell.word) {
-                            cellContent = isPerfectCell ? (
-                              <>
-                                <span className="perfect-label">Perfect</span>
-                                <span
-                                  className="word"
-                                  style={{ fontSize: textSizeForWord(cell.word) }}
-                                >
-                                  {cell.word}
-                                </span>
-                                <span className="cell-score">+{cell.score}</span>
-                              </>
-                            ) : (
-                              <>
-                                <span
-                                  className="word"
-                                  style={{ fontSize: textSizeForWord(cell.word) }}
-                                >
-                                  {cell.word}
-                                </span>
-                                <span className="cell-score">+{cell.score}</span>
-                              </>
-                            );
-                          }
-
-                          return (
-                            <div
-                              key={`${cell.row}-${cell.col}`}
-                              className={`cell ${cell.word ? 'revealed' : 'hidden'} ${isPerfectCell ? 'perfect' : ''}`}
-                              data-row={cell.row}
-                              data-col={cell.col}
-                              onClick={() => {
-                                if (!cell.word) {
-                                  openGuessModal(cell.row, cell.col);
-                                }
-                              }}
-                            >
-                              {cellContent}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <aside className="sidebar">
-            <div className="board-info">
-              {analysisMode ? (
-                <>
-                  <div className="analysis-back" onClick={enterNormalMode}>
-                    <span className="info-icon" aria-hidden="true">
-                      <IconArrowLeft width={20} />
-                    </span>
-                    <span className="info-value">Leave analysis</span>
-                  </div>
-
-                  <div className="info-row">
-                    <span className="info-icon" aria-hidden="true">
-                      <IconBrain width={20} />
-                    </span>
-                    <span className="info-value">Analysis Mode</span>
-                  </div>
-
-                  {mode !== 'daily' && !board?.timeConfig.unlimited && (
-                    <div className="info-row">
-                      <span className="info-icon" aria-hidden="true">
-                        <IconClock width={20} />
-                      </span>
-                      <span className="info-value">
-                        {formatSecondsAsCountdown(secondsRemaining)}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="info-row">
-                    <span className="info-icon" aria-hidden="true">
-                      <IconQuestionMark width={20} />
-                    </span>
-                    <span className="info-value">
-                      {(() => {
-                        const guesses = board ? board.guessedWords.length : 0;
-                        const guessText = guesses === 1 ? 'guess' : 'guesses';
-                        return `${guesses} ${guessText}`;
-                      })()}
-                    </span>
-                  </div>
-
-                  <div className="info-row">
-                    <span className="info-icon" aria-hidden="true">
-                      <IconStarFilled width={20} />
-                    </span>
-                    <span className="info-value">
-                      {board ? board.totalScore : 0} / {board ? board.maxScore : 0} (
-                      {board ? Math.round((board.totalScore / board.maxScore) * 100) : 0}%)
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="info-row">
-                    <span className="info-icon" aria-hidden="true">
-                      <IconHash width={20} />
-                    </span>
-                    <span className="info-value">{board ? board.seedString : '------'}</span>
-                  </div>
-
-                  <div className="info-row mode-row">
-                    <div className="mode-toggle" role="tablist" aria-label="Game mode">
-                      <button
-                        className={`mode-btn ${mode === 'daily' ? 'active' : ''}`}
-                        role="tab"
-                        aria-selected="true"
-                        onClick={() => setMode('daily')}
-                      >
-                        Daily
-                      </button>
-                      <button
-                        className={`mode-btn ${mode === 'infinite' ? 'active' : ''}`}
-                        role="tab"
-                        aria-selected="false"
-                        onClick={() => setMode('infinite')}
-                      >
-                        Infinite
-                      </button>
-                    </div>
-                  </div>
-
-                  {(mode === 'daily' || !board?.timeConfig.unlimited) && (
-                    <div className="info-row">
-                      <span className="info-icon" aria-hidden="true">
-                        <IconClock width={20} />
-                      </span>
-                      <span className="info-value">
-                        {mode === 'daily'
-                          ? dailyCountdown
-                          : formatSecondsAsCountdown(secondsRemaining)}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="info-row">
-                    <span className="info-icon" aria-hidden="true">
-                      <IconQuestionMark width={20} />
-                    </span>
-                    <span className="info-value">
-                      {(() => {
-                        const guesses = board ? board.guessedWords.length : 0;
-                        const guessText = guesses === 1 ? 'guess' : 'guesses';
-                        return `${guesses} ${guessText}`;
-                      })()}
-                    </span>
-                  </div>
-
-                  <div className="info-row">
-                    <span className="info-icon" aria-hidden="true">
-                      <IconStarFilled width={20} />
-                    </span>
-                    <span className="info-value">
-                      {board ? board.totalScore : 0} / {board ? board.maxScore : 0} (
-                      {board ? Math.round((board.totalScore / board.maxScore) * 100) : 0}%)
-                    </span>
-                  </div>
-
-                  <div className="dock">
-                    {mode === 'infinite' && (
-                      <>
-                        <button
-                          type="button"
-                          className="dock-action"
-                          title="Share infinite puzzle"
-                          aria-label="Share infinite puzzle"
-                          onClick={() => {
-                            void copyShareLink();
-                          }}
-                        >
-                          <IconShare width={15} />
-                          <span className="sr-only">Share</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="dock-action"
-                          title="Reroll puzzle"
-                          aria-label="Reroll puzzle"
-                          onClick={rerollInfiniteBoard}
-                        >
-                          <IconRotate width={15} />
-                          <span className="sr-only">Reroll</span>
-                        </button>
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      className="dock-action"
-                      title="Reset board"
-                      aria-label="Reset board"
-                      onClick={openResetConfirmModal}
-                    >
-                      <IconHistory width={15} />
-                      <span className="sr-only">Reset Board</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="dock-action"
-                      title="Analysis mode"
-                      aria-label="Analysis mode"
-                      onClick={enterAnalysisMode}
-                    >
-                      <IconBrain width={15} />
-                      <span className="sr-only">Analysis Mode</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="dock-action"
-                      title="Debug stats"
-                      aria-label="Debug stats"
-                      onClick={openDebugModal}
-                    >
-                      <IconBug width={15} />
-                      <span className="sr-only">Debug Stats</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="dock-action"
-                      title="Info"
-                      aria-label="Info"
-                      onClick={openInfoModal}
-                    >
-                      <IconInfoCircle width={15} />
-                      <span className="sr-only">Info</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </aside>
+          <BoardGrid board={board} onCellClick={openGuessModal} />
+          <Sidebar
+            board={board}
+            mode={mode}
+            analysisMode={analysisMode}
+            secondsRemaining={secondsRemaining}
+            dailyCountdown={dailyCountdown}
+            setMode={setMode}
+            enterNormalMode={() => setAnalysisMode(false)}
+            enterAnalysisMode={() => setAnalysisMode(true)}
+            copyShareLink={copyShareLink}
+            rerollInfiniteBoard={rerollInfiniteBoard}
+            openResetConfirmModal={openResetConfirmModal}
+            openDebugModal={openDebugModal}
+            openInfoModal={openInfoModal}
+          />
         </main>
       </div>
 
-      {guessModal && (
-        <div className="modal" aria-hidden="false" onClick={closeGuessModal}>
-          <div
-            className="modal-content"
-            aria-modal="true"
-            role="dialog"
-            aria-labelledby="guessModalTitle"
-            onClick={event => event.stopPropagation()}
-          >
-            <div className="modal-actions">
-              <button
-                className="modal-action"
-                aria-label="Get a hint"
-                type="button"
-                onClick={getHintForGuessModal}
-              >
-                <IconBulb width={20} />
-              </button>
-              <button
-                className="modal-action"
-                aria-label="Close guess modal"
-                type="button"
-                onClick={closeGuessModal}
-              >
-                <IconX width={20} />
-              </button>
-            </div>
-            <div className="modal-header">
-              <div id="guessModalTitle">Enter your guess</div>
-            </div>
-            <div className="modal-body">
-              <p className="modal-copy">
-                {guessModal.cell.rowCondition.label} & {guessModal.cell.colCondition.label}
-              </p>
-              <form onSubmit={handleGuessSubmit}>
-                <label htmlFor="guessInput">Word</label>
-                <input
-                  ref={guessInputRef}
-                  id="guessInput"
-                  className={
-                    guessModal.value &&
-                    (!WORDS.includes(guessModal.value.toLowerCase()) ||
-                      !Board.getValidWordsForCell(guessModal.cell).includes(
-                        guessModal.value.toLowerCase()
-                      )) &&
-                    !guessModal.value.startsWith('!')
-                      ? 'invalid'
-                      : ''
-                  }
-                  autoComplete="off"
-                  value={guessModal.value}
-                  onChange={event => {
-                    setGuessModal(current =>
-                      current ? { ...current, value: event.target.value } : current
-                    );
-                  }}
-                />
-                {guessModal.value && WORDS.includes(guessModal.value.toLowerCase()) && (
-                  <span className="modal-sub">
-                    Score:{' '}
-                    {scoreWord(
-                      guessModal.value,
-                      Board.getValidWordsForConditions(
-                        guessModal.cell.rowCondition,
-                        guessModal.cell.colCondition
-                      )
-                    )}{' '}
-                    /{' '}
-                    {scoreWord(
-                      Board.getBestWordForCell(guessModal.cell),
-                      Board.getValidWordsForConditions(
-                        guessModal.cell.rowCondition,
-                        guessModal.cell.colCondition
-                      )
-                    )}
-                  </span>
-                )}
-                <div className="modal-controls">
-                  <button
-                    type="submit"
-                    disabled={
-                      !!guessModal.value &&
-                      (!WORDS.includes(guessModal.value.toLowerCase()) ||
-                        !Board.getValidWordsForCell(guessModal.cell).includes(
-                          guessModal.value.toLowerCase()
-                        )) &&
-                      !guessModal.value.startsWith('!')
-                    }
-                  >
-                    Guess
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {messageModal && (
-        <div className="modal" aria-hidden="false" onClick={closeMessageModal}>
-          <div
-            className="modal-content"
-            aria-modal="true"
-            role="dialog"
-            aria-labelledby="messageModalTitle"
-            onClick={event => event.stopPropagation()}
-          >
-            <div className="modal-actions">
-              <button
-                className="modal-action"
-                aria-label="Close message modal"
-                type="button"
-                onClick={closeMessageModal}
-              >
-                <IconX width={20} />
-              </button>
-            </div>
-            <div className="modal-header">
-              <div id="messageModalTitle">{messageModal.title}</div>
-            </div>
-            <div className="modal-body">
-              <p className="modal-copy">{messageModal.message}</p>
-              <div className="modal-controls">
-                <button type="button" onClick={closeMessageModal}>
-                  OK
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {confirmModal && (
-        <div className="modal" aria-hidden="false" onClick={closeConfirmModal}>
-          <div
-            className="modal-content"
-            aria-modal="true"
-            role="dialog"
-            aria-labelledby="confirmModalTitle"
-            onClick={event => event.stopPropagation()}
-          >
-            <div className="modal-actions">
-              <button
-                className="modal-action"
-                aria-label="Close confirmation modal"
-                type="button"
-                onClick={closeConfirmModal}
-              >
-                <IconX width={20} />
-              </button>
-            </div>
-            <div className="modal-header">
-              <div id="confirmModalTitle">{confirmModal.title}</div>
-            </div>
-            <div className="modal-body">
-              <p className="modal-copy">{confirmModal.message}</p>
-              <div className="modal-controls">
-                <button
-                  type="button"
-                  onClick={() => {
-                    confirmModal.onConfirm();
-                  }}
-                >
-                  {confirmModal.confirmLabel}
-                </button>
-                <button type="button" className="secondary" onClick={closeConfirmModal}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {debugModal && (
-        <div className="modal" aria-hidden="false" onClick={closeDebugModal}>
-          <div
-            className="modal-content modal-content--debug"
-            aria-modal="true"
-            role="dialog"
-            aria-labelledby="debugModalTitle"
-            onClick={event => event.stopPropagation()}
-          >
-            <div className="modal-actions">
-              <button
-                className="modal-action"
-                aria-label="Close debug modal"
-                type="button"
-                onClick={closeDebugModal}
-              >
-                <IconX width={20} />
-              </button>
-            </div>
-            <div className="modal-header">
-              <div id="debugModalTitle">Debug Stats</div>
-            </div>
-            <div className="modal-body">
-              {debugStats ? (
-                <>
-                  <dl className="debug-list">
-                    <div>
-                      <dt>last</dt>
-                      <dd>{debugStats.last.toFixed(2)} ms</dd>
-                    </div>
-                    <div>
-                      <dt>min</dt>
-                      <dd>{debugStats.min.toFixed(2)} ms</dd>
-                    </div>
-                    <div>
-                      <dt>max</dt>
-                      <dd>{debugStats.max.toFixed(2)} ms</dd>
-                    </div>
-                    <div>
-                      <dt>avg</dt>
-                      <dd>{debugStats.mean.toFixed(2)} ms</dd>
-                    </div>
-                    <div>
-                      <dt>median</dt>
-                      <dd>{debugStats.median.toFixed(2)} ms</dd>
-                    </div>
-                    <div>
-                      <dt>p95</dt>
-                      <dd>{debugStats.p95.toFixed(2)} ms</dd>
-                    </div>
-                    <div>
-                      <dt>p99</dt>
-                      <dd>{debugStats.p99.toFixed(2)} ms</dd>
-                    </div>
-                    <div>
-                      <dt>n</dt>
-                      <dd>{debugStats.count}</dd>
-                    </div>
-                  </dl>
-                  <div className="modal-controls">
-                    <button type="button" className="secondary" onClick={handleClearDebugStats}>
-                      Clear
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <p className="modal-copy">No data yet.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {infoModal && (
-        <div className="modal" aria-hidden="false" onClick={closeInfoModal}>
-          <div
-            className="modal-content"
-            aria-modal="true"
-            role="dialog"
-            aria-labelledby="infoModalTitle"
-            onClick={event => event.stopPropagation()}
-          >
-            <div className="modal-actions">
-              <button
-                className="modal-action"
-                aria-label="Close info modal"
-                type="button"
-                onClick={closeInfoModal}
-              >
-                <IconX width={20} />
-              </button>
-            </div>
-            <div className="modal-header">
-              <div id="infoModalTitle">WordGrid Info</div>
-            </div>
-            <div className="modal-body">
-              <p className="modal-copy">
-                You are playing WordGrid version{' '}
-                <span className="mono">
-                  {
-                    // Generate a version string from the commit hash
-                    // It will be YEAR.MONTH.COMMITNUMBER
-                    (() => {
-                      if (BUILD_TIMESTAMP === '$TIMESTAMP') {
-                        return `dev-build`;
-                      }
-
-                      const date = new Date(BUILD_TIMESTAMP);
-                      const year = date.getUTCFullYear();
-                      const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
-                      return `${year}.${month}.${COMMIT_NUMBER_THIS_MONTH}`;
-                    })()
-                  }
-                </span>
-                , <IconGitCommit size={14} style={{ verticalAlign: 'middle' }} /> commit{' '}
-                <span
-                  className="mono clickable"
-                  onClick={() => {
-                    window.open(
-                      COMMIT === '$COMMIT_HASH'
-                        ? 'http://github.com/wordgrid-game/wordgrid'
-                        : `https://github.com/wordgrid-game/wordgrid/commit/${COMMIT}`,
-                      '_blank'
-                    );
-                  }}
-                >
-                  {COMMIT === '$COMMIT_HASH' ? 'dev-build' : COMMIT.substring(0, 7)}
-                </span>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      <ModalsContainer
+        guessModal={guessModal}
+        messageModal={messageModal}
+        confirmModal={confirmModal}
+        debugModal={debugModal}
+        debugStats={debugStats}
+        infoModal={infoModal}
+        guessInputRef={guessInputRef}
+        setGuessModal={setGuessModal}
+        closeGuessModal={closeGuessModal}
+        getHintForGuessModal={getHintForGuessModal}
+        handleGuessSubmit={handleGuessSubmit}
+        closeMessageModal={closeMessageModal}
+        closeConfirmModal={closeConfirmModal}
+        closeDebugModal={closeDebugModal}
+        handleClearDebugStats={() => {
+          Board.clearBoardGenDebugStats();
+          setDebugStats(null);
+        }}
+        closeInfoModal={closeInfoModal}
+      />
     </>
   );
 }
