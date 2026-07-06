@@ -356,7 +356,7 @@ function App() {
     <>
       <div className="app">
         <main>
-          <BoardGrid board={board} onCellClick={openGuessModal} />
+          <BoardGrid board={board} hiddenCells={analysisMode ? new Set(board?.grid.flat()) : new Set()} onCellClick={openGuessModal} />
           <Sidebar
             board={board}
             mode={mode}

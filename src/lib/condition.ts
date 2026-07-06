@@ -1,5 +1,9 @@
 import { discriptorForNumber } from './utils';
 
+function escapeRegExp(string: string): string {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+}
+
 export class Condition {
   id: string;
   label: string;
@@ -21,7 +25,7 @@ export class Condition {
   }
 
   createStartsWithCondition(prefix: string): Condition {
-    const regex = new RegExp(`^${prefix}`);
+    const regex = new RegExp(`^${escapeRegExp(prefix)}`, 'i');
     return new Condition(`startsWith_${prefix}`, `Starts '${prefix}'`, regex);
   }
 
@@ -36,12 +40,12 @@ export class Condition {
   }
 
   createEndsWithCondition(suffix: string): Condition {
-    const regex = new RegExp(`${suffix}$`);
+    const regex = new RegExp(`${escapeRegExp(suffix)}$`, 'i');
     return new Condition(`endsWith_${suffix}`, `Ends '${suffix}'`, regex);
   }
 
   createContainsCondition(substring: string): Condition {
-    const regex = new RegExp(`${substring}`);
+    const regex = new RegExp(`${escapeRegExp(substring)}`, 'i');
     return new Condition(`contains_${substring}`, `Contains '${substring}'`, regex);
   }
 
@@ -78,7 +82,7 @@ export class Condition {
   }
 
   createConsecutiveVowelsCondition(minConsecutive: number): Condition {
-    const regex = new RegExp(`^(?:(?:[^aeiou]*[aeiou]){${minConsecutive},}[^aeiou]*)$`, 'i');
+    const regex = new RegExp(`[aeiou]{${minConsecutive},}`, 'i');
     return new Condition(
       `consecutiveVowels_${minConsecutive}`,
       `${discriptorForNumber(minConsecutive)} vowel`,
@@ -87,7 +91,7 @@ export class Condition {
   }
 
   createConsecutiveLettersCondition(minConsecutive: number): Condition {
-    const regex = new RegExp(String.raw`^(?:(?:.*([a-z])(?!.*\1)){${minConsecutive},}.*)$`, 'i');
+    const regex = new RegExp(String.raw`([a-z])\1{${minConsecutive - 1},}`, 'i');
     return new Condition(
       `consecutiveLetters_${minConsecutive}`,
       `${discriptorForNumber(minConsecutive)} letter`,

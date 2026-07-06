@@ -6,10 +6,11 @@ import './BoardGrid.css';
 
 interface BoardGridProps {
   board: Board | null;
+  hiddenCells: Set<Cell>;
   onCellClick: (row: number, col: number) => void;
 }
 
-export const BoardGrid: React.FC<BoardGridProps> = ({ board, onCellClick }) => {
+export const BoardGrid: React.FC<BoardGridProps> = ({ board, hiddenCells, onCellClick }) => {
   if (!board) return null;
 
   return (
@@ -35,29 +36,39 @@ export const BoardGrid: React.FC<BoardGridProps> = ({ board, onCellClick }) => {
               {board.grid[rowIndex].map((cell: Cell) => {
                 const isPerfectCell = Boolean(cell.word && cell.word === cell.bestWord);
                 const currentWord = cell.word || '';
+                const isCellHidden = hiddenCells.has(cell);
 
                 return (
                   <div
                     key={`${cell.row}-${cell.col}`}
-                    className={`cell ${currentWord ? 'revealed' : 'hidden'} ${isPerfectCell ? 'perfect' : ''}`}
+                    className={`cell ${currentWord && !isCellHidden ? 'revealed' : 'hidden'} ${isPerfectCell && !isCellHidden ? 'perfect' : ''} ${isCellHidden ? 'hidden-cell' : ''}`}
                     data-row={cell.row}
                     data-col={cell.col}
                     onClick={() => {
-                      if (!currentWord) {
+                      if (!currentWord && !isCellHidden) {
                         onCellClick(cell.row, cell.col);
                       }
                     }}
                   >
-                    {currentWord ? (
-                      <>
-                        {isPerfectCell && <span className="perfect-label">Perfect</span>}
-                        <span className="word" style={{ fontSize: textSizeForWord(currentWord) }}>
-                          {currentWord}
-                        </span>
-                        <span className="cell-score">+{cell.score}</span>
-                      </>
+                    {isCellHidden ? (
+                      <span className="word">-</span>
                     ) : (
-                      <span className="word">?</span>
+                      <>
+                        {currentWord ? (
+                          <>
+                            {isPerfectCell && <span className="perfect-label">Perfect</span>}
+                            <span
+                              className="word"
+                              style={{ fontSize: textSizeForWord(currentWord) }}
+                            >
+                              {currentWord}
+                            </span>
+                            <span className="cell-score">+{cell.score}</span>
+                          </>
+                        ) : (
+                          <span className="word">?</span>
+                        )}
+                      </>
                     )}
                   </div>
                 );

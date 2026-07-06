@@ -120,6 +120,11 @@
   cursor: default;
 }
 
+.cell.hidden-cell {
+  cursor: default;
+  user-select: none;
+}
+
 .cell.perfect {
   background: linear-gradient(135deg, var(--accent-2), var(--accent));
   position: relative;
