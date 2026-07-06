@@ -16,9 +16,15 @@ import {
   IconStarFilled,
   IconX,
 } from '@tabler/icons-react';
-import { Board, type DebugStats, type Cell } from './lib/board';
+import { Board, type DebugStats, type Cell, TIME_CONFIGS } from './lib/board';
 import type { GameMode } from './lib/constants';
-import { createSeedFromString, parseSeedString, textSizeForWord } from './lib/utils';
+import {
+  createSeedFromString,
+  formatDateAsCountdown,
+  formatSecondsAsCountdown,
+  parseSeedString,
+  textSizeForWord,
+} from './lib/utils';
 import { scoreWord } from './lib/score';
 import { loadDailyBoard, loadInfiniteBoard, saveDailyBoard, saveInfiniteBoard } from './lib/store';
 import { WORDS } from './lib/data';
@@ -92,18 +98,13 @@ function getTimeUntilNextDailyLevel(): string {
   const nextMidnight = new Date(now);
   nextMidnight.setHours(24, 0, 0, 0);
 
-  const remainingMs = Math.max(0, nextMidnight.getTime() - now.getTime());
-  const totalSeconds = Math.floor(remainingMs / 1000);
-  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-  const seconds = String(totalSeconds % 60).padStart(2, '0');
-
-  return `${hours}:${minutes}:${seconds}`;
+  return formatDateAsCountdown(nextMidnight);
 }
 
 function App() {
   const [board, setBoard] = useState<Board | null>(null);
   const [mode, setMode] = useState<GameMode>(getInitialMode);
+  const [analysisMode, setAnalysisMode] = useState(false);
   const [guessModal, setGuessModal] = useState<GuessModalState | null>(null);
   const [messageModal, setMessageModal] = useState<MessageModalState | null>(null);
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null);
@@ -113,6 +114,7 @@ function App() {
   const [dailyCountdown, setDailyCountdown] = useState(() => getTimeUntilNextDailyLevel());
   const guessInputRef = useRef<HTMLInputElement | null>(null);
   const wasGuessModalOpen = useRef(false);
+  const [secondsRemaining, setSecondsRemaining] = useState(board?.getSecondsRemaining() || 0);
 
   useEffect(() => {
     setGuessModal(null);
@@ -143,6 +145,24 @@ function App() {
     const intervalId = globalThis.setInterval(updateCountdown, 1000);
     return () => globalThis.clearInterval(intervalId);
   }, [mode]);
+
+  useEffect(() => {
+    if (mode === 'daily') return;
+
+    setSecondsRemaining(board?.getSecondsRemaining() || 0);
+
+    const timer = setInterval(() => {
+      const remaining = board?.getSecondsRemaining() || 0;
+
+      setSecondsRemaining(remaining);
+
+      if (remaining <= 0) {
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [board, mode]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -224,7 +244,7 @@ function App() {
       }
 
       if (sharedSeed) {
-        const sharedBoard = new Board(sharedSeed, 'infinite');
+        const sharedBoard = new Board(sharedSeed, 'infinite', TIME_CONFIGS.unlimited);
         setBoard(sharedBoard);
         updateBoardUrl('infinite', sharedBoard.seedString);
         return;
@@ -235,7 +255,7 @@ function App() {
       gameMode === 'daily'
         ? createSeedFromString(new Date().toDateString())
         : createSeedFromString(`${Date.now()}-${Math.random()}`);
-    const newBoard = new Board(seed, gameMode);
+    const newBoard = new Board(seed, gameMode, TIME_CONFIGS.unlimited);
     setBoard(newBoard);
 
     if (gameMode === 'daily') {
@@ -258,7 +278,8 @@ function App() {
         onConfirm: () => {
           const nextBoard = new Board(
             createSeedFromString(`${Date.now()}-${Math.random()}`),
-            'infinite'
+            'infinite',
+            TIME_CONFIGS.unlimited
           );
           persistBoard(nextBoard);
           closeConfirmModal();
@@ -267,14 +288,18 @@ function App() {
       return;
     }
 
-    const nextBoard = new Board(createSeedFromString(`${Date.now()}-${Math.random()}`), 'infinite');
+    const nextBoard = new Board(
+      createSeedFromString(`${Date.now()}-${Math.random()}`),
+      'infinite',
+      TIME_CONFIGS.unlimited
+    );
     persistBoard(nextBoard);
   };
 
   const resetCurrentBoard = () => {
     if (!board) return;
 
-    const resetBoard = new Board(board.seed, board.boardGameMode);
+    const resetBoard = new Board(board.seed, board.boardGameMode, board.timeConfig);
     persistBoard(resetBoard, true);
     closeConfirmModal();
   };
@@ -298,6 +323,7 @@ function App() {
   const openGuessModal = (row: number, col: number) => {
     if (!board) return;
 
+    startBoardTimer();
     setMessageModal(null);
     setGuessModal({ cell: board.grid[row][col], value: '' });
   };
@@ -388,6 +414,13 @@ function App() {
     setDebugStats(null);
   };
 
+  const startBoardTimer = () => {
+    if (board?.boardGameMode !== 'infinite' || board.timeConfig.unlimited || board.startedAt)
+      return;
+
+    board.startedAt = new Date();
+  };
+
   const guessWord = (row: number, col: number, word: string) => {
     if (!board) {
       return { success: false, message: 'No board is currently loaded' };
@@ -424,6 +457,10 @@ function App() {
       board.grid[row][col] = cell;
       board.usedWords.add(normalizedWord);
       board.totalScore += cell.score || 0;
+
+      if (board.grid.flat().every(c => c.word)) {
+        board.endedAt = new Date();
+      }
 
       persistBoard(Object.assign(Object.create(Object.getPrototypeOf(board)), board));
 
@@ -462,7 +499,7 @@ function App() {
                 {board && (
                   <>
                     <div className="logo-square">
-                      <img width="80%" height="auto" src={logo} alt="WordGrid Logo"></img>
+                      <img src={logo} alt="WordGrid Logo"></img>
                     </div>
                     {board.columns.map(col => (
                       <div key={col.id} className="col-header">
@@ -559,12 +596,14 @@ function App() {
                 </div>
               </div>
 
-              {mode === 'daily' && (
+              {(mode === 'daily' || !board?.timeConfig.unlimited) && (
                 <div className="info-row">
                   <span className="icon" aria-hidden="true">
                     <IconClock width={20} />
                   </span>
-                  <span className="value">{dailyCountdown}</span>
+                  <span className="value">
+                    {mode === 'daily' ? dailyCountdown : formatSecondsAsCountdown(secondsRemaining)}
+                  </span>
                 </div>
               )}
 
@@ -694,7 +733,12 @@ function App() {
                   ref={guessInputRef}
                   id="guessInput"
                   className={
-                    guessModal.value && !WORDS.includes(guessModal.value.toLowerCase())
+                    guessModal.value &&
+                    (!WORDS.includes(guessModal.value.toLowerCase()) ||
+                      !Board.getValidWordsForCell(guessModal.cell).includes(
+                        guessModal.value.toLowerCase()
+                      )) &&
+                    !guessModal.value.startsWith('!')
                       ? 'invalid'
                       : ''
                   }
@@ -729,7 +773,14 @@ function App() {
                 <div className="modal-controls">
                   <button
                     type="submit"
-                    disabled={!!guessModal.value && !WORDS.includes(guessModal.value.toLowerCase())}
+                    disabled={
+                      !!guessModal.value &&
+                      (!WORDS.includes(guessModal.value.toLowerCase()) ||
+                        !Board.getValidWordsForCell(guessModal.cell).includes(
+                          guessModal.value.toLowerCase()
+                        )) &&
+                      !guessModal.value.startsWith('!')
+                    }
                   >
                     Guess
                   </button>

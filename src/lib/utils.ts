@@ -76,6 +76,38 @@ export function createDateString(date: Date): string {
   return `${day}-${month}-${year}`;
 }
 
+export function formatDateAsCountdown(date: Date): string {
+  const now = new Date();
+  const remainingMs = Math.max(0, date.getTime() - now.getTime());
+  const totalSeconds = Math.floor(remainingMs / 1000);
+  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+export function formatSecondsAsCountdown(totalSeconds: number): string {
+  const hrs = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+
+  const secondsStr = String(secs).padStart(2, '0');
+
+  if (hrs > 0) {
+    const hoursStr = String(hrs).padStart(2, '0');
+    const minutesStr = String(mins).padStart(2, '0');
+    return `${hoursStr}:${minutesStr}:${secondsStr}`;
+  }
+
+  if (mins > 0) {
+    const minutesStr = String(mins).padStart(2, '0');
+    return `${minutesStr}:${secondsStr}`;
+  }
+
+  return `0:${secondsStr}`;
+}
+
 export function textSizeForWord(word: string): string {
   if (word.length <= 4) {
     return '20px';
