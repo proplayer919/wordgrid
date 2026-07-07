@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
-import { Board, type DebugStats, type Cell, TIME_CONFIGS } from './lib/board';
-import type { GameMode } from './lib/constants';
-import { createSeedFromString, formatDateAsCountdown, parseSeedString } from './lib/utils';
-import { scoreWord } from './lib/score';
+import { Board, TIME_CONFIGS } from '../common/board';
+import { Puzzle, type Cell, type DebugStats } from '../common/puzzle';
+import type { GameMode } from '../common/constants';
+import { createSeedFromString, formatDateAsCountdown, parseSeedString } from '../common/utils';
+import { scoreWord } from '../common/score';
 import { loadDailyBoard, loadInfiniteBoard, saveDailyBoard, saveInfiniteBoard } from './lib/store';
-import { WORDS } from './lib/data';
+import { WORDS } from '../common/data';
 
 import { BoardGrid } from './components/BoardGrid/BoardGrid';
 import { Sidebar } from './components/Sidebar/Sidebar';
@@ -239,7 +240,7 @@ function App() {
       board.startedAt = new Date();
     }
     setMessageModal(null);
-    setGuessModal({ cell: board.grid[row][col], value: '' });
+    setGuessModal({ cell: board.puzzle.grid[row][col], value: '' });
   };
 
   const closeGuessModal = () => setGuessModal(null);
@@ -255,7 +256,7 @@ function App() {
       case 1:
         openMessageModal(
           'Hint',
-          `There are ${Board.getValidWordsForConditions(cell.rowCondition, cell.colCondition).length} possible words for this cell`
+          `There are ${Puzzle.getValidWordsForConditions(cell.rowCondition, cell.colCondition).length} possible words for this cell`
         );
         break;
       case 2:
@@ -291,7 +292,7 @@ function App() {
   };
 
   const openDebugModal = () => {
-    setDebugStats(Board.getBoardGenDebugStats());
+    setDebugStats(Puzzle.getBoardGenDebugStats());
     setDebugModal(true);
   };
   const closeDebugModal = () => setDebugModal(false);
@@ -304,7 +305,7 @@ function App() {
     if (!normalizedWord) return { success: false, message: 'Please enter a word' };
 
     board.guessedWords.push(normalizedWord);
-    const cell = board.grid[row][col];
+    const cell = board.puzzle.grid[row][col];
 
     if (normalizedWord === '!exact') {
       openMessageModal('Exact word', `The exact word for this cell is: "${cell.bestWord}"`);
@@ -319,13 +320,13 @@ function App() {
       cell.word = normalizedWord;
       cell.score = scoreWord(
         normalizedWord,
-        Board.getValidWordsForConditions(cell.rowCondition, cell.colCondition)
+        Puzzle.getValidWordsForConditions(cell.rowCondition, cell.colCondition)
       );
-      board.grid[row][col] = cell;
+      board.puzzle.grid[row][col] = cell;
       board.usedWords.add(normalizedWord);
       board.totalScore += cell.score || 0;
 
-      if (board.grid.flat().every(c => c.word)) {
+      if (board.puzzle.grid.flat().every(c => c.word)) {
         board.endedAt = new Date();
         openConfirmModal({
           title: 'Analysis Mode',
@@ -356,7 +357,11 @@ function App() {
     <>
       <div className="app">
         <main>
-          <BoardGrid board={board} hiddenCells={analysisMode ? new Set(board?.grid.flat()) : new Set()} onCellClick={openGuessModal} />
+          <BoardGrid
+            board={board}
+            hiddenCells={analysisMode ? new Set(board?.puzzle.grid.flat()) : new Set()}
+            onCellClick={openGuessModal}
+          />
           <Sidebar
             board={board}
             mode={mode}
@@ -366,7 +371,7 @@ function App() {
             dailyCountdown={dailyCountdown}
             puzzleFinished={!!board?.endedAt}
             setMode={setMode}
-            setSeedHidden={(value) => {
+            setSeedHidden={value => {
               setSeedHidden(value);
 
               if (value && board?.boardGameMode === 'infinite') {
@@ -402,7 +407,7 @@ function App() {
         closeConfirmModal={closeConfirmModal}
         closeDebugModal={closeDebugModal}
         handleClearDebugStats={() => {
-          Board.clearBoardGenDebugStats();
+          Puzzle.clearBoardGenDebugStats();
           setDebugStats(null);
         }}
         closeInfoModal={closeInfoModal}

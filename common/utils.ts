@@ -16,16 +16,16 @@ export function mulberry32(seed: number): () => number {
 
 export function shuffleArray<T>(arr: T[], random: () => number): T[] {
   const arrayCopy = [...arr];
-  let currentIndex = arrayCopy.length,
-    randomIndex;
+  let currentIndex = arrayCopy.length;
+  let randomIndex: number;
 
   while (currentIndex !== 0) {
     randomIndex = Math.floor(random() * currentIndex);
     currentIndex--;
 
     [arrayCopy[currentIndex], arrayCopy[randomIndex]] = [
-      arrayCopy[randomIndex],
-      arrayCopy[currentIndex],
+      arrayCopy[randomIndex]!,
+      arrayCopy[currentIndex]!,
     ];
   }
 
@@ -58,7 +58,7 @@ export function parseSeedString(seedString: string): number | null {
   const alphabetLength = BOARD_SEED_ALPHABET.length;
 
   for (let i = seedString.length - 1; i >= 0; i--) {
-    const index = BOARD_SEED_ALPHABET.indexOf(seedString[i]);
+    const index = BOARD_SEED_ALPHABET.indexOf(seedString[i]!);
     if (index === -1) {
       return null;
     }

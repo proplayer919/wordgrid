@@ -39,7 +39,8 @@
   image-rendering: pixelated;
 }
 
-.col-header, .row-header {
+.col-header,
+.row-header {
   width: var(--cell-size);
   height: var(--cell-size);
   border-radius: 12px;

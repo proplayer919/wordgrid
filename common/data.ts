@@ -1,4 +1,4 @@
-import wordsData from '../assets/data/words.txt?raw';
+import wordsData from './data/words.txt?raw';
 
 export const WORDS = Array.from(
   new Set<string>(

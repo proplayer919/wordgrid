@@ -1,10 +1,10 @@
 import React, { type RefObject, type SubmitEvent } from 'react';
 import { IconBulb, IconGitCommit, IconX } from '@tabler/icons-react';
-import { Board, type Cell, type DebugStats } from '../../lib/board';
-import { scoreWord } from '../../lib/score';
-import { WORDS } from '../../lib/data';
+import { scoreWord } from '../../../common/score';
+import { WORDS } from '../../../common/data';
 import { BUILD_TIMESTAMP, COMMIT, COMMIT_NUMBER_THIS_MONTH } from '../../version';
 import './Modal.css';
+import { Puzzle, type DebugStats, type Cell } from '../../../common/puzzle';
 
 interface ModalsContainerProps {
   guessModal: { cell: Cell; value: string } | null;
@@ -93,7 +93,7 @@ export const ModalsContainer: React.FC<ModalsContainerProps> = ({
                   className={
                     guessModal.value &&
                     (!WORDS.includes(guessModal.value.toLowerCase()) ||
-                      !Board.getValidWordsForCell(guessModal.cell).includes(
+                      !Puzzle.getValidWordsForCell(guessModal.cell).includes(
                         guessModal.value.toLowerCase()
                       )) &&
                     !guessModal.value.startsWith('!')
@@ -111,15 +111,15 @@ export const ModalsContainer: React.FC<ModalsContainerProps> = ({
                     Score:{' '}
                     {scoreWord(
                       guessModal.value,
-                      Board.getValidWordsForConditions(
+                      Puzzle.getValidWordsForConditions(
                         guessModal.cell.rowCondition,
                         guessModal.cell.colCondition
                       )
                     )}{' '}
                     /{' '}
                     {scoreWord(
-                      Board.getBestWordForCell(guessModal.cell),
-                      Board.getValidWordsForConditions(
+                      Puzzle.getBestWordForCell(guessModal.cell),
+                      Puzzle.getValidWordsForConditions(
                         guessModal.cell.rowCondition,
                         guessModal.cell.colCondition
                       )
@@ -132,7 +132,7 @@ export const ModalsContainer: React.FC<ModalsContainerProps> = ({
                     disabled={
                       !!guessModal.value &&
                       (!WORDS.includes(guessModal.value.toLowerCase()) ||
-                        !Board.getValidWordsForCell(guessModal.cell).includes(
+                        !Puzzle.getValidWordsForCell(guessModal.cell).includes(
                           guessModal.value.toLowerCase()
                         )) &&
                       !guessModal.value.startsWith('!')
@@ -316,7 +316,7 @@ export const ModalsContainer: React.FC<ModalsContainerProps> = ({
                   onClick={() => {
                     window.open(
                       COMMIT === '$COMMIT_HASH'
-                        ? 'http://github.com/wordgrid-game/wordgrid'
+                        ? 'https://github.com/wordgrid-game/wordgrid'
                         : `https://github.com/wordgrid-game/wordgrid/commit/${COMMIT}`,
                       '_blank'
                     );
