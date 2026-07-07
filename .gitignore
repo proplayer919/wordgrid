@@ -24,6 +24,7 @@ out
 *.njsproj
 *.sln
 *.sw?
+.markdownlint.jsonc
 
 # dotenv environment variable files
 .env
