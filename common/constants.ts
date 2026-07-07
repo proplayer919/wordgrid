@@ -55,4 +55,4 @@ export const CONDITIONS = [
   Condition.prototype.createLengthCondition(8),
 ];
 
-export type GameMode = 'daily' | 'infinite';
+export type GameMode = 'daily' | 'infinite' | 'online';

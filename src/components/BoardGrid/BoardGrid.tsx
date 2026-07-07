@@ -1,7 +1,8 @@
 import React from 'react';
 import logo from '../../assets/logo.png';
-import { Board, type Cell } from '../../lib/board';
-import { textSizeForWord } from '../../lib/utils';
+import { Board } from '../../../common/board';
+import type { Cell } from '../../../common/puzzle';
+import { textSizeForWord } from '../../../common/utils';
 import './BoardGrid.css';
 
 interface BoardGridProps {
@@ -21,19 +22,19 @@ export const BoardGrid: React.FC<BoardGridProps> = ({ board, hiddenCells, onCell
             <img src={logo} alt="WordGrid Logo" />
           </div>
 
-          {board.columns.map(col => (
+          {board.puzzle.columns.map(col => (
             <div key={col.id} className="col-header">
               <strong>{col.label}</strong>
             </div>
           ))}
 
-          {board.rows.map((row, rowIndex) => (
+          {board.puzzle.rows.map((row, rowIndex) => (
             <div key={row.id} className="row">
               <div className="row-header">
                 <strong>{row.label}</strong>
               </div>
 
-              {board.grid[rowIndex].map((cell: Cell) => {
+              {board.puzzle.grid[rowIndex].map((cell: Cell) => {
                 const isPerfectCell = Boolean(cell.word && cell.word === cell.bestWord);
                 const currentWord = cell.word || '';
                 const isCellHidden = hiddenCells.has(cell);

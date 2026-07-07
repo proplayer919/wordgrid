@@ -1,5 +1,5 @@
-import { Board } from './board';
-import { createDateString } from './utils';
+import { Board } from '../../common/board';
+import { createDateString } from '../../common/utils';
 
 export function saveDailyBoard(board: Board): void {
   const saveString = board.getSaveString();

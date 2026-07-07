@@ -12,10 +12,11 @@ import {
   IconRotate,
   IconShare,
   IconStarFilled,
+  IconWeight,
 } from '@tabler/icons-react';
-import { Board } from '../../lib/board';
-import { formatSecondsAsCountdown } from '../../lib/utils';
-import type { GameMode } from '../../lib/constants';
+import { Board } from '../../../common/board';
+import { formatSecondsAsCountdown } from '../../../common/utils';
+import type { GameMode } from '../../../common/constants';
 import './Sidebar.css';
 
 interface SidebarProps {
@@ -58,8 +59,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const guessCount = board ? board.guessedWords.length : 0;
   const guessText = guessCount === 1 ? 'guess' : 'guesses';
   const totalScore = board ? board.totalScore : 0;
-  const maxScore = board ? board.maxScore : 0;
+  const maxScore = board ? board.puzzle.maxScore : 0;
   const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+  const puzzleRating = board ? board.puzzle.difficultyRating : 0;
   const isUnlimited = board?.timeConfig.unlimited;
 
   return (
@@ -102,6 +104,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <IconStarFilled width={20} />
               </span>
               <span className="info-value">{`${totalScore} / ${maxScore} (${percentage}%)`}</span>
+            </div>
+
+            <div className="info-row">
+              <span className="info-icon" aria-hidden="true">
+                <IconWeight width={20} />
+              </span>
+              <span className="info-value">{puzzleRating.toFixed(1)}</span>
             </div>
           </>
         ) : (
@@ -163,6 +172,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <IconStarFilled width={20} />
               </span>
               <span className="info-value">{`${totalScore} / ${maxScore} (${percentage}%)`}</span>
+            </div>
+
+            <div className="info-row">
+              <span className="info-icon" aria-hidden="true">
+                <IconWeight width={20} />
+              </span>
+              <span className="info-value">Difficulty: {puzzleRating}</span>
             </div>
 
             <div className="dock">
