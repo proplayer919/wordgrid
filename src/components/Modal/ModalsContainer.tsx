@@ -130,7 +130,7 @@ export const ModalsContainer: React.FC<ModalsContainerProps> = ({
                   <button
                     type="submit"
                     disabled={
-                      !!guessModal.value &&
+                      !!guessModal.value ||
                       (!WORDS.includes(guessModal.value.toLowerCase().trim()) ||
                         !Puzzle.getValidWordsForCell(guessModal.cell).includes(
                           guessModal.value.toLowerCase().trim()
