@@ -21,6 +21,11 @@ export const logger = pino(
   transport
 );
 
+/**
+ * Creates a child logger with a specific component name.
+ * @param name The name of the component
+ * @returns A child logger instance
+ */
 export function createLogger(name: string) {
   return logger.child({ component: name });
 }

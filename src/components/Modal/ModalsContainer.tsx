@@ -130,7 +130,7 @@ export const ModalsContainer: React.FC<ModalsContainerProps> = ({
                   <button
                     type="submit"
                     disabled={
-                      !!guessModal.value &&
+                      !!guessModal.value ||
                       (!WORDS.includes(guessModal.value.toLowerCase().trim()) ||
                         !Puzzle.getValidWordsForCell(guessModal.cell).includes(
                           guessModal.value.toLowerCase().trim()
@@ -306,7 +306,7 @@ export const ModalsContainer: React.FC<ModalsContainerProps> = ({
                 <IconCalendarDue size={14} style={{ verticalAlign: 'middle' }} /> Version: {' '}
                 <span className="mono">
                   {(() => {
-                    if (BUILD_TIMESTAMP === '$TIMESTAMP') return `dev-build`;
+                    if (BUILD_TIMESTAMP === '$TIMESTAMP') return 'dev-build';
                     const date = new Date(BUILD_TIMESTAMP);
                     return `${date.getUTCFullYear()}.${(date.getUTCMonth() + 1).toString().padStart(2, '0')}.${COMMIT_NUMBER_THIS_MONTH}`;
                   })()}

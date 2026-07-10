@@ -1,13 +1,20 @@
-# WordGrid
+<div style="display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 25px;">
+  <div style="display: flex; align-items: center; gap: 35px;">
+    <img width="128" height="128" src="./images/logo.png" alt="WordGrid Logo" style="margin: 0; object-fit: contain;">
+    <h1 style="margin: 0; border-bottom: none; padding-bottom: 0; font-size: 40px;">WordGrid</h1>
+  </div>
 
-[![Netlify Status](https://api.netlify.com/api/v1/badges/ae1f19af-4ebb-4756-82e7-28a3cd5f5dd3/deploy-status)](https://app.netlify.com/projects/wordgridgame/deploys)
-![GitHub repo size](https://img.shields.io/github/repo-size/wordgrid-game/wordgrid)
-![GitHub Issues](https://img.shields.io/github/issues/wordgrid-game/wordgrid)
-![GitHub Pull Requests](https://img.shields.io/github/issues-pr/wordgrid-game/wordgrid)
-![GitHub contributors](https://img.shields.io/github/contributors-anon/wordgrid-game/wordgrid)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/t/wordgrid-game/wordgrid)
+  <p style="margin: 0; font-size: 18px; text-align: center;">A grid-based puzzle game to test your vocabulary</p>
 
-A grid-based puzzle game to test your vocabulary.
+  <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">
+    <img height="20" src="https://api.netlify.com/api/v1/badges/ae1f19af-4ebb-4756-82e7-28a3cd5f5dd3/deploy-status" alt="Netlify Status" style="height: 20px; width: auto;">
+    <img height="20" src="https://img.shields.io/github/repo-size/wordgrid-game/wordgrid" alt="GitHub repo size" style="height: 20px; width: auto;">
+    <img height="20" src="https://img.shields.io/github/issues/wordgrid-game/wordgrid" alt="GitHub Issues" style="height: 20px; width: auto;">
+    <img height="20" src="https://img.shields.io/github/issues-pr/wordgrid-game/wordgrid" alt="GitHub Pull Requests" style="height: 20px; width: auto;">
+    <img height="20" src="https://img.shields.io/github/contributors-anon/wordgrid-game/wordgrid" alt="GitHub contributors" style="height: 20px; width: auto;">
+    <img height="20" src="https://img.shields.io/github/commit-activity/t/wordgrid-game/wordgrid" alt="GitHub commit activity" style="height: 20px; width: auto;">
+  </div>
+</div>
 
 ## Setting up Local Development
 
@@ -47,6 +54,5 @@ Follow the [security policy](./SECURITY.md) and use GitHub's built in security v
 ## Contributors
 
 <a href="https://github.com/wordgrid-game/wordgrid/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=wordgrid-game/wordgrid" />
+  <img src="https://contrib.rocks/image?repo=wordgrid-game/wordgrid" alt="WordGrid Contributors" />
 </a>
-

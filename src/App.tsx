@@ -1,15 +1,8 @@
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
-import { Board, TIME_CONFIGS } from '../common/board';
-import { Puzzle, type Cell, type DebugStats } from '../common/puzzle';
 import type { GameMode } from '../common/constants';
-import { createSeedFromString, formatDateAsCountdown, parseSeedString } from '../common/utils';
-import { scoreWord } from '../common/score';
-import { loadDailyBoard, loadInfiniteBoard, saveDailyBoard, saveInfiniteBoard } from './lib/store';
-import { WORDS } from '../common/data';
-
-import { BoardGrid } from './components/BoardGrid/BoardGrid';
-import { Sidebar } from './components/Sidebar/Sidebar';
+import { type Cell, type DebugStats } from '../common/puzzle';
 import { ModalsContainer } from './components/Modal/ModalsContainer';
+import { Game } from './pages/Game';
 import './App.css';
 
 type GuessModalState = { cell: Cell; value: string };
@@ -27,47 +20,26 @@ function getInitialMode(): GameMode {
   return searchParams.get('mode') === 'infinite' || searchParams.has('seed') ? 'infinite' : 'daily';
 }
 
-function getInfiniteSeedFromUrl(): number | null {
-  if (globalThis.window === undefined) return null;
-  const seedString = new URL(globalThis.window.location.href).searchParams.get('seed');
-  return seedString ? parseSeedString(seedString.toLowerCase()) : null;
-}
-
-function buildShareLink(seedString: string): string {
-  const url = new URL(globalThis.window.location.href);
-  url.searchParams.set('mode', 'infinite');
-  url.searchParams.set('seed', seedString);
-  return url.toString();
-}
-
-function getTimeUntilNextDailyLevel(): string {
-  const nextMidnight = new Date();
-  nextMidnight.setHours(24, 0, 0, 0);
-  return formatDateAsCountdown(nextMidnight);
-}
-
 function App() {
-  const [board, setBoard] = useState<Board | null>(null);
   const [mode, setMode] = useState<GameMode>(getInitialMode);
-  const [analysisMode, setAnalysisMode] = useState(false);
+
   const [guessModal, setGuessModal] = useState<GuessModalState | null>(null);
   const [messageModal, setMessageModal] = useState<MessageModalState | null>(null);
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null);
   const [debugModal, setDebugModal] = useState(false);
   const [debugStats, setDebugStats] = useState<DebugStats | null>(null);
   const [infoModal, setInfoModal] = useState(false);
-  const [dailyCountdown, setDailyCountdown] = useState(() => getTimeUntilNextDailyLevel());
-  const [secondsRemaining, setSecondsRemaining] = useState(0);
-  const [seedHidden, setSeedHidden] = useState(false);
 
   const guessInputRef = useRef<HTMLInputElement | null>(null);
   const wasGuessModalOpen = useRef(false);
+
+  const gameSubmitRef = useRef<(() => void) | null>(null);
+  const gameHintRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     setGuessModal(null);
     setMessageModal(null);
     setConfirmModal(null);
-    loadBoard(mode);
   }, [mode]);
 
   useEffect(() => {
@@ -80,39 +52,16 @@ function App() {
   }, [guessModal]);
 
   useEffect(() => {
-    if (mode !== 'daily') return;
-    const updateCountdown = () => setDailyCountdown(getTimeUntilNextDailyLevel());
-    updateCountdown();
-    const intervalId = globalThis.setInterval(updateCountdown, 1000);
-    return () => globalThis.clearInterval(intervalId);
-  }, [mode]);
-
-  useEffect(() => {
-    if (mode === 'daily') return;
-    setSecondsRemaining(board?.getSecondsRemaining() || 0);
-
-    const timer = setInterval(() => {
-      const remaining = board?.getSecondsRemaining() || 0;
-      setSecondsRemaining(remaining);
-      if (remaining <= 0 || board?.endedAt || analysisMode) {
-        clearInterval(timer);
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [board, mode, analysisMode]);
-
-  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        if (messageModal) closeMessageModal();
-        if (guessModal) closeGuessModal();
-        if (confirmModal) closeConfirmModal();
-        if (debugModal) closeDebugModal();
+        if (messageModal) setMessageModal(null);
+        if (guessModal) setGuessModal(null);
+        if (confirmModal) setConfirmModal(null);
+        if (debugModal) setDebugModal(false);
         return;
       }
       if (event.key === 'Enter' && messageModal) {
-        closeMessageModal();
+        setMessageModal(null);
         event.preventDefault();
         return;
       }
@@ -125,250 +74,35 @@ function App() {
     return () => globalThis.removeEventListener('keydown', handleKeyDown);
   }, [confirmModal, guessModal, messageModal, debugModal]);
 
-  const persistBoard = (nextBoard: Board, persistEmptyInfinite = false) => {
-    setBoard(nextBoard);
-    if (nextBoard.boardGameMode === 'daily') {
-      saveDailyBoard(nextBoard);
-      return;
-    }
-
-    if (nextBoard.guessedWords.length > 0 || persistEmptyInfinite) {
-      saveInfiniteBoard(nextBoard);
-    }
-  };
-
-  const loadBoard = (gameMode: GameMode) => {
-    if (gameMode === 'daily') {
-      const savedBoard = loadDailyBoard();
-      if (savedBoard) {
-        setBoard(savedBoard);
-        return;
-      }
-    } else {
-      const savedBoard = loadInfiniteBoard();
-      const sharedSeed = getInfiniteSeedFromUrl();
-
-      if (sharedSeed && savedBoard?.seed === sharedSeed) {
-        setBoard(savedBoard);
-        return;
-      }
-
-      if (sharedSeed) {
-        const sharedBoard = new Board(sharedSeed, 'infinite', TIME_CONFIGS.unlimited);
-        setBoard(sharedBoard);
-        return;
-      }
-
-      if (savedBoard) {
-        setBoard(savedBoard);
-        return;
-      }
-    }
-
-    const seed =
-      gameMode === 'daily'
-        ? createSeedFromString(new Date().toDateString())
-        : createSeedFromString(`${Date.now()}-${Math.random()}`);
-    const newBoard = new Board(seed, gameMode, TIME_CONFIGS.unlimited);
-    setBoard(newBoard);
-    if (gameMode === 'daily') saveDailyBoard(newBoard);
-  };
-
-  const rerollInfiniteBoard = () => {
-    if (!board) return;
-    if (board.guessedWords.length > 0) {
-      openConfirmModal({
-        title: 'Reroll puzzle?',
-        message: 'This will clear your current guesses and generate a new infinite puzzle.',
-        confirmLabel: 'Reroll',
-        onConfirm: () => {
-          const nextBoard = new Board(
-            createSeedFromString(`${Date.now()}-${Math.random()}`),
-            'infinite',
-            TIME_CONFIGS.unlimited
-          );
-          persistBoard(nextBoard);
-          closeConfirmModal();
-        },
-      });
-      return;
-    }
-    persistBoard(
-      new Board(
-        createSeedFromString(`${Date.now()}-${Math.random()}`),
-        'infinite',
-        TIME_CONFIGS.unlimited
-      )
-    );
-  };
-
-  const resetCurrentBoard = () => {
-    if (!board) return;
-    persistBoard(new Board(board.seed, board.boardGameMode, board.timeConfig), true);
-    closeConfirmModal();
-  };
-
-  const copyShareLink = async () => {
-    if (!board) return;
-    const shareLink = buildShareLink(board.seedString);
-    try {
-      await navigator.clipboard.writeText(shareLink);
-      openMessageModal(
-        'Link copied',
-        'The link for this infinite puzzle is now on your clipboard.'
-      );
-    } catch {
-      openMessageModal('Copy failed', shareLink);
-    }
-  };
-
-  const openGuessModal = (row: number, col: number) => {
-    if (!board) return;
-    if (board.boardGameMode === 'infinite' && !board.timeConfig.unlimited && !board.startedAt) {
-      board.startedAt = new Date();
-    }
-    setMessageModal(null);
-    setGuessModal({ cell: board.puzzle.grid[row][col], value: '' });
-  };
-
-  const closeGuessModal = () => setGuessModal(null);
-
-  const getHintForGuessModal = () => {
-    if (!board || !guessModal?.cell.bestWord) return;
-    const { cell } = guessModal;
-    const hintIndex = Math.floor(Math.random() * 4);
-    switch (hintIndex) {
-      case 0:
-        openMessageModal('Hint', `The first letter of the best word is '${cell.bestWord[0]}'`);
-        break;
-      case 1:
-        openMessageModal(
-          'Hint',
-          `There are ${Puzzle.getValidWordsForConditions(cell.rowCondition, cell.colCondition).length} possible words for this cell`
-        );
-        break;
-      case 2:
-        openMessageModal('Hint', `The best word has ${cell.bestWord.length} letters`);
-        break;
-      case 3: {
-        const vowels = cell.bestWord.match(/[aeiou]/gi)?.length || 0;
-        openMessageModal(
-          'Hint',
-          `The best word has ${vowels} vowels and ${cell.bestWord.length - vowels} consonants`
-        );
-        break;
-      }
-    }
-  };
-
-  const openMessageModal = (title: string, message: string) => setMessageModal({ title, message });
-  const closeMessageModal = () => setMessageModal(null);
-  const closeConfirmModal = () => setConfirmModal(null);
-  const openConfirmModal = (modal: ConfirmModalState) => {
-    setGuessModal(null);
-    setMessageModal(null);
-    setConfirmModal(modal);
-  };
-
-  const openResetConfirmModal = () => {
-    openConfirmModal({
-      title: 'Reset board?',
-      message: 'This clears your current guesses and restores the puzzle to its initial state.',
-      confirmLabel: 'Reset Board',
-      onConfirm: resetCurrentBoard,
-    });
-  };
-
-  const openDebugModal = () => {
-    setDebugStats(Puzzle.getBoardGenDebugStats());
-    setDebugModal(true);
-  };
-  const closeDebugModal = () => setDebugModal(false);
-  const openInfoModal = () => setInfoModal(true);
-  const closeInfoModal = () => setInfoModal(false);
-
-  const guessWord = (row: number, col: number, word: string) => {
-    if (!board) return { success: false, message: 'No board is currently loaded' };
-    const normalizedWord = word.trim().toLowerCase();
-    if (!normalizedWord) return { success: false, message: 'Please enter a word' };
-
-    board.guessedWords.push(normalizedWord);
-    const cell = board.puzzle.grid[row][col];
-
-    if (normalizedWord === '!exact') {
-      openMessageModal('Exact word', `The exact word for this cell is: "${cell.bestWord}"`);
-      return { success: true, message: 'Exact word revealed' };
-    }
-    if (board.usedWords.has(normalizedWord))
-      return { success: false, message: 'This word has already been used somewhere else' };
-    if (!WORDS.includes(normalizedWord))
-      return { success: false, message: 'This is not a valid word' };
-
-    if (cell.rowCondition.test(normalizedWord) && cell.colCondition.test(normalizedWord)) {
-      cell.word = normalizedWord;
-      cell.score = scoreWord(
-        normalizedWord,
-        Puzzle.getValidWordsForConditions(cell.rowCondition, cell.colCondition)
-      );
-      board.puzzle.grid[row][col] = cell;
-      board.usedWords.add(normalizedWord);
-      board.totalScore += cell.score || 0;
-
-      if (board.puzzle.grid.flat().every(c => c.word)) {
-        board.endedAt = new Date();
-        openConfirmModal({
-          title: 'Analysis Mode',
-          message:
-            'You have completed the puzzle! Would you like to enter analysis mode to see the best possible words for each cell?',
-          confirmLabel: 'Enter Analysis Mode',
-          onConfirm: () => {
-            setAnalysisMode(true);
-            closeConfirmModal();
-          },
-        });
-      }
-      persistBoard(Object.assign(Object.create(Object.getPrototypeOf(board)), board));
-      return { success: true, message: `"${normalizedWord}" was placed.` };
-    }
-    return { success: false, message: "This doesn't meet the conditions for the cell" };
-  };
-
   const handleGuessSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!guessModal) return;
-    const result = guessWord(guessModal.cell.row, guessModal.cell.col, guessModal.value);
-    if (result.success) closeGuessModal();
-    else openMessageModal('Invalid Guess', result.message);
+    if (gameSubmitRef.current) {
+      gameSubmitRef.current();
+    }
+  };
+
+  const handleGetHint = () => {
+    if (gameHintRef.current) {
+      gameHintRef.current();
+    }
   };
 
   return (
     <>
       <div className="app">
-        <main>
-          <BoardGrid
-            board={board}
-            hiddenCells={analysisMode ? new Set(board?.puzzle.grid.flat()) : new Set()}
-            onCellClick={openGuessModal}
-          />
-          <Sidebar
-            board={board}
-            mode={mode}
-            seedHidden={seedHidden}
-            analysisMode={analysisMode}
-            secondsRemaining={secondsRemaining}
-            dailyCountdown={dailyCountdown}
-            puzzleFinished={!!board?.endedAt}
-            setMode={setMode}
-            setSeedHidden={setSeedHidden}
-            enterNormalMode={() => setAnalysisMode(false)}
-            enterAnalysisMode={() => setAnalysisMode(true)}
-            copyShareLink={copyShareLink}
-            rerollInfiniteBoard={rerollInfiniteBoard}
-            openResetConfirmModal={openResetConfirmModal}
-            openDebugModal={openDebugModal}
-            openInfoModal={openInfoModal}
-          />
-        </main>
+        <Game
+          mode={mode}
+          setMode={setMode}
+          guessModal={guessModal}
+          setGuessModal={setGuessModal}
+          setMessageModal={setMessageModal}
+          setConfirmModal={setConfirmModal}
+          setDebugModal={setDebugModal}
+          setDebugStats={setDebugStats}
+          setInfoModal={setInfoModal}
+          gameSubmitRef={gameSubmitRef}
+          gameHintRef={gameHintRef}
+        />
       </div>
 
       <ModalsContainer
@@ -380,17 +114,16 @@ function App() {
         infoModal={infoModal}
         guessInputRef={guessInputRef}
         setGuessModal={setGuessModal}
-        closeGuessModal={closeGuessModal}
-        getHintForGuessModal={getHintForGuessModal}
+        closeGuessModal={() => setGuessModal(null)}
+        getHintForGuessModal={handleGetHint}
         handleGuessSubmit={handleGuessSubmit}
-        closeMessageModal={closeMessageModal}
-        closeConfirmModal={closeConfirmModal}
-        closeDebugModal={closeDebugModal}
+        closeMessageModal={() => setMessageModal(null)}
+        closeConfirmModal={() => setConfirmModal(null)}
+        closeDebugModal={() => setDebugModal(false)}
         handleClearDebugStats={() => {
-          Puzzle.clearBoardGenDebugStats();
           setDebugStats(null);
         }}
-        closeInfoModal={closeInfoModal}
+        closeInfoModal={() => setInfoModal(false)}
       />
     </>
   );

@@ -23,17 +23,31 @@ export interface MatchResult {
 const Q = Math.log(10) / 400; // ~0.005756
 const DECAY_CONSTANT_C = 25; // Controls how fast uncertainty grows over time blocks
 
+/**
+ * Calculates the Glicko g(RD) factor based on the player's rating deviation (RD).
+ * @param rd The rating deviation of the player
+ * @returns The g(RD) factor used in Glicko calculations
+ */
 function getG(rd: number): number {
   return 1 / Math.sqrt(1 + (3 * Q * Q * rd * rd) / (Math.PI * Math.PI));
 }
 
+/**
+ * Calculates the expected score for a player against an opponent using the Glicko formula.
+ * @param ratingA The Elo rating of player A
+ * @param ratingB The Elo rating of player B
+ * @param gOpponent The g(RD) factor for the opponent
+ * @returns The expected score for player A against player B
+ */
 function getGlickoExpectedScore(ratingA: number, ratingB: number, gOpponent: number): number {
   return 1 / (1 + Math.pow(10, (-gOpponent * (ratingA - ratingB)) / 400));
 }
 
 /**
- * Calculates time periods elapsed since the last match.
- * 1 period = 1 day
+ * Calculates the number of decay periods that have elapsed since the last match played.
+ * @param lastPlayed The timestamp of the last match played by the player
+ * @param currentMatchTime The timestamp of the current match (defaults to now)
+ * @returns The number of decay periods that have elapsed
  */
 function calculateDecayPeriods(lastPlayed?: Date, currentMatchTime: Date = new Date()): number {
   if (!lastPlayed) return 0;
@@ -46,7 +60,11 @@ function calculateDecayPeriods(lastPlayed?: Date, currentMatchTime: Date = new D
 }
 
 /**
- * Internal core decay formula math
+ * Computes the decayed rating deviation (RD) based on the number of periods elapsed.
+ * @param deviation The current rating deviation (RD) of the player
+ * @param periods The number of decay periods that have elapsed since the last match
+ * @param c The decay constant that controls how fast uncertainty grows over time
+ * @returns The decayed rating deviation (RD) after applying the decay formula
  */
 function computeDecayedRd(deviation: number, periods: number, c: number): number {
   const decayedRd = Math.sqrt(deviation * deviation + c * c * periods);
@@ -54,7 +72,7 @@ function computeDecayedRd(deviation: number, periods: number, c: number): number
 }
 
 /**
- * On-Demand function to see how much a player's uncertainty (RD) has decayed
+ * On-demand function to see how much a player's uncertainty (RD) has decayed
  * without modifying their actual historical ELO rating profile.
  * @param player The current player profile snapshot
  * @param checkAt Optional date parameter (defaults to right now)
@@ -66,8 +84,13 @@ export function previewDecayOnly(player: EloHolder, checkAt: Date = new Date()):
 }
 
 /**
- * Executes a multiplayer match update, decaying both players' RD inline
- * if they haven't played in a while before processing Glicko variations.
+ * Processes a multiplayer match between two players, updating their Elo ratings and deviations based on the match outcome and puzzle Elo.
+ * @param playerA The first player
+ * @param playerB The second player
+ * @param scoreA The score of the first player
+ * @param scoreB The score of the second player
+ * @param puzzleElo The Elo rating of the puzzle
+ * @returns The result of the match
  */
 export function processMultiplayerMatch(
   playerA: EloHolder,

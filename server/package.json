@@ -4,17 +4,18 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "bun run src/index.ts",
+    "start": "bun run --preload ./patch.ts src/index.ts",
     "lint": "oxlint"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "oxlint": "^1.71.0"
+    "@types/ioredis": "^5.0.0"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
+    "ioredis": "^5.11.1",
     "mongodb": "^7.4.0",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3"

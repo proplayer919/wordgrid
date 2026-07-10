@@ -1,5 +1,5 @@
 import { processMultiplayerMatch, type EloHolder } from './elo';
-import { createLogger } from './logging';
+import { createLogger } from '../logging';
 
 const logger = createLogger('EloSimulation');
 
@@ -52,9 +52,9 @@ function runIterativeSimulation(
   let pA = { ...initialPlayerA };
   let pB = { ...initialPlayerB };
 
-  logger.info(`\n==================================================`);
+  logger.info('\n==================================================');
   logger.info(`Starting Iterative Simulation for ${rounds} Rounds`);
-  logger.info(`==================================================`);
+  logger.info('==================================================');
 
   for (let i = 1; i <= rounds; i++) {
     const scoreA = Math.random();

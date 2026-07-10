@@ -11,5 +11,6 @@ COPY . .
 USER bun
 
 EXPOSE 3000/tcp
+EXPOSE 3001/tcp
 
-ENTRYPOINT [ "bun", "run", "src/index.ts" ]
+ENTRYPOINT [ "bun", "run", "--preload", "./patch.ts", "src/index.ts" ]
