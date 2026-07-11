@@ -50,19 +50,11 @@
   justify-content: center;
   padding: 8px;
   text-align: center;
-  cursor: default;
+  cursor: text;
 }
 
 .col-header {
   flex-direction: column;
-}
-
-.col-header > strong {
-  cursor: text;
-}
-
-.row-header > strong {
-  cursor: text;
 }
 
 .cell {
