@@ -51,6 +51,10 @@
   line-height: 1.45;
 }
 
+.modal-copy > svg {
+  margin-top: -3px;
+}
+
 .modal-body input {
   width: 100%;
   padding: 10px 12px;

@@ -50,7 +50,7 @@
   justify-content: center;
   padding: 8px;
   text-align: center;
-  cursor: default;
+  cursor: text;
 }
 
 .col-header {
@@ -147,16 +147,26 @@
   text-transform: uppercase;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
   :root {
     --cell-size: min(100px, calc((100vw - 64px) / 4));
   }
+
+  .logo-square img {
+    width: 96px !important;
+    height: 96px !important;
+  }
+}
+
+@media (max-width: 800px) {
   .grid-wrap {
     justify-content: center;
   }
+
   .boardArea {
     order: 1;
   }
+
   .logo-square img {
     width: 96px !important;
     height: 96px !important;
@@ -167,9 +177,11 @@
   :root {
     --cell-size: min(80px, calc((100vw - 40px) / 4));
   }
+
   .grid {
     gap: 8px;
   }
+
   .logo-square img {
     width: 64px !important;
     height: 64px !important;
@@ -180,9 +192,11 @@
   :root {
     --cell-size: min(70px, calc((100vw - 32px) / 4));
   }
+
   .grid {
     gap: 6px;
   }
+  
   .cell .word {
     font-size: 14px;
     padding: 0 4px;

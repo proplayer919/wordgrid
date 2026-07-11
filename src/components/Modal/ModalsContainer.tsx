@@ -1,5 +1,5 @@
 import React, { type RefObject, type SubmitEvent } from 'react';
-import { IconBulb, IconGitCommit, IconX } from '@tabler/icons-react';
+import { IconBulb, IconGitCommit, IconCalendarDue, IconX } from '@tabler/icons-react';
 import { scoreWord } from '../../../common/score';
 import { WORDS } from '../../../common/data';
 import { BUILD_TIMESTAMP, COMMIT, COMMIT_NUMBER_THIS_MONTH } from '../../version';
@@ -302,15 +302,15 @@ export const ModalsContainer: React.FC<ModalsContainerProps> = ({
             </div>
             <div className="modal-body">
               <p className="modal-copy">
-                You are playing WordGrid version{' '}
+                <IconCalendarDue size={14} style={{ verticalAlign: 'middle' }} /> Version: {' '}
                 <span className="mono">
                   {(() => {
                     if (BUILD_TIMESTAMP === '$TIMESTAMP') return 'dev-build';
                     const date = new Date(BUILD_TIMESTAMP);
                     return `${date.getUTCFullYear()}.${(date.getUTCMonth() + 1).toString().padStart(2, '0')}.${COMMIT_NUMBER_THIS_MONTH}`;
                   })()}
-                </span>
-                , <IconGitCommit size={14} style={{ verticalAlign: 'middle' }} /> commit{' '}
+                </span><br></br>
+                <IconGitCommit size={14} style={{ verticalAlign: 'middle' }} /> Commit: {' '}
                 <span
                   className="mono clickable"
                   onClick={() => {
