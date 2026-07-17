@@ -12,8 +12,8 @@ services:
       dockerfile: server/Dockerfile
     restart: unless-stopped
     ports:
-      - "7000:7000"
-      - "7001:7001"
+      - "8210:8210"
+      - "8211:8211"
     depends_on:
       - redis
       - mongodb
@@ -42,7 +42,7 @@ services:
     container_name: wordgrid-prometheus
     restart: unless-stopped
     volumes:
-      - ./server/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
       - "1256:1256"

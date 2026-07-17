@@ -6,7 +6,7 @@ scrape_configs:
   - job_name: 'wordgrid-server'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['wordgrid-server:3000']
+      - targets: ['wordgrid-server:8211']
 
   - job_name: 'prometheus'
     static_configs:
