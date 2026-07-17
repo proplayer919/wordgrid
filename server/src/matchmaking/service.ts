@@ -4,7 +4,6 @@ import type { ServerWebSocket } from 'bun';
 import { MATCHMAKING_PORT } from '../env';
 import redis from '../db/redis';
 import { z } from 'zod';
-import { collectDefaultMetrics } from 'prom-client';
 import {
   register,
   activeQueuedPlayers,
@@ -16,11 +15,6 @@ import {
 
 const logger = createLogger('MatchmakerService');
 const matchmaker = new Matchmaker();
-
-collectDefaultMetrics({
-  register: register,
-  prefix: 'matchmaking_',
-});
 
 const IncomingMessageSchema = z.discriminatedUnion('type', [
   z.object({

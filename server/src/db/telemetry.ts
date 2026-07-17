@@ -1,4 +1,5 @@
 import client from 'prom-client';
+import { heapStats } from 'bun:jsc';
 
 export const register = new client.Registry();
 
@@ -36,3 +37,17 @@ export const matchesRejected = new client.Counter({
   help: 'Total matches rejected by players',
   registers: [register],
 });
+
+const bunJscHeapUsedBytes = new client.Gauge({
+  name: 'bun_jsc_heap_size_used_bytes',
+  help: 'Total memory used by JavaScriptCore heap objects in bytes.',
+});
+
+setInterval(() => {
+  try {
+    const stats = heapStats();
+    bunJscHeapUsedBytes.set(stats.heapSize);
+  } catch (err) {
+    console.error('Failed to collect Bun JSC heap stats:', err);
+  }
+}, 5000).unref();
