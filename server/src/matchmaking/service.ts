@@ -1,9 +1,10 @@
-import { Matchmaker, MATCH_CHANNEL, type Match } from './matchmaker';
+import { Matchmaker, MATCH_CHANNEL } from './matchmaker';
 import { createLogger } from '../logging';
 import type { ServerWebSocket } from 'bun';
 import { MATCHMAKING_PORT } from '../env';
 import redis from '../db/redis';
 import { z } from 'zod';
+import { collectDefaultMetrics } from 'prom-client';
 import {
   register,
   activeQueuedPlayers,
@@ -14,6 +15,11 @@ import {
 
 const logger = createLogger('MatchmakerService');
 const matchmaker = new Matchmaker();
+
+collectDefaultMetrics({
+  register: register,
+  prefix: 'matchmaking_',
+});
 
 const IncomingMessageSchema = z.discriminatedUnion('type', [
   z.object({
@@ -48,6 +54,28 @@ interface PlayerSocketData {
   joinedAt: number;
 }
 
+const PubSubMessageSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('MATCH_PROPOSED'),
+    match: z.object({
+      playerA: z.string(),
+      playerB: z.string(),
+      room: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('MATCH_READY'),
+    playerA: z.string(),
+    playerB: z.string(),
+    room: z.string(),
+  }),
+  z.object({
+    type: z.literal('MATCH_ABORTED'),
+    keptPlayerId: z.string(),
+    failedPlayerId: z.string(),
+  }),
+]);
+
 const activeConnections = new Map<string, ServerWebSocket<PlayerSocketData>>();
 
 function stringifyMessage(message: OutgoingMessage): string {
@@ -65,10 +93,18 @@ async function setupRedisPubSubSubscriber() {
 
   await subRedis.subscribe(MATCH_CHANNEL, async message => {
     try {
-      const payload = JSON.parse(message as unknown as string);
+      const rawPayload = JSON.parse(message as unknown as string);
+      const result = PubSubMessageSchema.safeParse(rawPayload);
+
+      if (!result.success) {
+        logger.warn(`Invalid Pub/Sub message schema: ${result.error.message}`);
+        return;
+      }
+
+      const payload = result.data;
 
       if (payload.type === 'MATCH_PROPOSED') {
-        const match: Match = payload.match;
+        const match = payload.match;
         const matchId = `match:${match.playerA}:${match.playerB}`;
 
         const hasPlayerA = activeConnections.has(match.playerA);
@@ -145,7 +181,9 @@ async function processMatchAcceptance(playerId: string, matchId: string) {
 
   const updatedData = await redis.hgetall(matchId);
   if (updatedData.acceptA === 'true' && updatedData.acceptB === 'true') {
-    await redis.del(matchId);
+    const deleted = await redis.del(matchId);
+    if (deleted === 0) return;
+
     await redis.publish(
       MATCH_CHANNEL,
       JSON.stringify({
@@ -160,16 +198,20 @@ async function processMatchAcceptance(playerId: string, matchId: string) {
 
 async function handleMatchTimeout(matchId: string) {
   const matchData = await redis.hgetall(matchId);
-  if (!matchData || Object.keys(matchData).length === 0) return;
 
-  await redis.del(matchId);
+  if (!matchData?.playerA || !matchData.playerB) return;
 
   const acceptA = matchData.acceptA === 'true';
   const acceptB = matchData.acceptB === 'true';
 
+  if (acceptA && acceptB) return;
+
+  const deleted = await redis.del(matchId);
+  if (deleted === 0) return;
+
   if (!acceptA && !acceptB) {
-    await abortPlayer(matchData.playerA!);
-    await abortPlayer(matchData.playerB!);
+    await abortPlayer(matchData.playerA);
+    await abortPlayer(matchData.playerB);
   } else if (acceptA && !acceptB) {
     await redis.publish(
       MATCH_CHANNEL,

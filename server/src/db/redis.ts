@@ -7,6 +7,7 @@ const logger = createLogger('RedisClient');
 const redis = new Redis({
   host: REDIS_HOST,
   port: REDIS_PORT,
+  lazyConnect: true,
 });
 
 redis.on('connect', () => logger.info('Connected to Redis'));

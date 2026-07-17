@@ -1,9 +1,14 @@
+import redis from './db/redis';
 import { createLogger } from './logging';
 import { startMatchmakingService } from './matchmaking/service';
 
 const logger = createLogger('Server');
 
 logger.info('Server is starting...');
+
+if (redis.status === 'wait') {
+  await redis.connect();
+}
 
 await startMatchmakingService()
   .then(() => {
