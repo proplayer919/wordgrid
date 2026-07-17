@@ -1,63 +1,77 @@
 import redis from '../db/redis';
+import matchFinder from './matchFinder.lua?raw';
 
 const QUEUE_KEY = 'matchmaking:queue';
+export const MATCH_CHANNEL = 'matchmaking:matches';
 
 export type Match = {
   playerA: string;
   playerB: string;
+  room: string;
 };
 
 export class Matchmaker {
-  /**
-   * Adds a player to the matchmaking queue.
-   * @param playerUuid Unique identifier for the player
-   * @param elo The player's Elo rating
-   */
-  async joinQueue(playerUuid: string, elo: number): Promise<void> {
-    await redis.zadd(QUEUE_KEY, elo, playerUuid);
-    console.log(`Player ${playerUuid} joined queue with Elo ${elo}`);
+  private luaScriptSha: string | null = null;
+
+  constructor() {
+    this.initLua();
   }
 
-  /**
-   * Removes a player from the matchmaking queue.
-   * @param playerUuid Unique identifier for the player
-   */
+  private async initLua() {
+    try {
+      this.luaScriptSha = (await redis.script('LOAD', matchFinder)) as string;
+    } catch (err) {
+      console.error('Failed to load Matchmaker Lua script:', err);
+    }
+  }
+
+  async joinQueue(playerUuid: string, elo: number): Promise<void> {
+    await redis.zadd(QUEUE_KEY, elo, playerUuid);
+  }
+
   async leaveQueue(playerUuid: string): Promise<void> {
     await redis.zrem(QUEUE_KEY, playerUuid);
   }
 
-  /**
-   * Attempts to find a match for a player based on their Elo rating and a specified tolerance.
-   * @param playerUuid Unique identifier for the player
-   * @param elo The player's Elo rating
-   * @param tolerance The acceptable Elo range for potential opponents (default is 50)
-   * @returns A `Match` object if a match is found, or `null` if no suitable opponent is available.
-   */
   async findMatch(playerUuid: string, elo: number, tolerance = 50): Promise<Match | null> {
     const minElo = elo - tolerance;
     const maxElo = elo + tolerance;
 
-    const potentialOpponents = await redis.zrangebyscore(QUEUE_KEY, minElo, maxElo);
+    let result: string[] | null = null;
 
-    const opponents = potentialOpponents.filter(id => id !== playerUuid);
-
-    if (opponents.length > 0) {
-      const opponentUuid = opponents[0]!;
-
-      const multi = redis.multi();
-      multi.zrem(QUEUE_KEY, playerUuid);
-      multi.zrem(QUEUE_KEY, opponentUuid);
-
-      const results = await multi.exec();
-
-      const playerRemoved = results?.[0]?.[1] === 1;
-      const opponentRemoved = results?.[1]?.[1] === 1;
-
-      if (playerRemoved && opponentRemoved) {
-        return { playerA: playerUuid, playerB: opponentUuid };
-      } else if (playerRemoved) {
-        await this.joinQueue(playerUuid, elo);
+    if (this.luaScriptSha) {
+      try {
+        result = (await redis.evalsha(
+          this.luaScriptSha,
+          1,
+          QUEUE_KEY,
+          minElo,
+          maxElo,
+          playerUuid
+        )) as string[] | null;
+      } catch (err: any) {
+        if (err.message?.includes('NOSCRIPT')) {
+          await this.initLua();
+          result = (await redis.eval(matchFinder, 1, playerUuid, minElo, maxElo)) as
+            string[] | null;
+        } else {
+          throw err;
+        }
       }
+    } else {
+      result = (await redis.eval(matchFinder, 1, playerUuid, minElo, maxElo)) as
+        string[] | null;
+    }
+
+    if (result?.length === 2) {
+      const match: Match = {
+        playerA: result[0]!,
+        playerB: result[1]!,
+        room: `room_${result[0]}_${result[1]}`,
+      };
+
+      await redis.publish(MATCH_CHANNEL, JSON.stringify({ type: 'MATCH_PROPOSED', match }));
+      return match;
     }
 
     return null;
