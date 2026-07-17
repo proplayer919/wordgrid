@@ -27,6 +27,12 @@ export const matchesCompleted = new client.Counter({
 
 export const matchesTimedOut = new client.Counter({
   name: 'matchmaking_matches_timed_out_total',
-  help: 'Total matches aborted due to timeout or rejection',
+  help: 'Total matches aborted due to timeout',
+  registers: [register],
+});
+
+export const matchesRejected = new client.Counter({
+  name: 'matchmaking_matches_rejected_total',
+  help: 'Total matches rejected by players',
   registers: [register],
 });

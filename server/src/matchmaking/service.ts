@@ -11,6 +11,7 @@ import {
   matchesProposed,
   matchesCompleted,
   matchesTimedOut,
+  matchesRejected,
 } from '../db/telemetry';
 
 const logger = createLogger('MatchmakerService');
@@ -52,6 +53,7 @@ interface PlayerSocketData {
   id: string;
   elo: number;
   joinedAt: number;
+  currentMatchId?: string;
 }
 
 const PubSubMessageSchema = z.discriminatedUnion('type', [
@@ -71,8 +73,11 @@ const PubSubMessageSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('MATCH_ABORTED'),
-    keptPlayerId: z.string(),
-    failedPlayerId: z.string(),
+    playerA: z.string(),
+    playerB: z.string(),
+    acceptA: z.boolean(),
+    acceptB: z.boolean(),
+    rejectedBy: z.string().optional(),
   }),
 ]);
 
@@ -91,9 +96,11 @@ async function setupRedisPubSubSubscriber() {
   const subRedis = redis.duplicate();
   await subRedis.connect();
 
-  await subRedis.subscribe(MATCH_CHANNEL, async message => {
+  await subRedis.subscribe(MATCH_CHANNEL);
+
+  subRedis.on('message', async (channel, message) => {
     try {
-      const rawPayload = JSON.parse(message as unknown as string);
+      const rawPayload = JSON.parse(message);
       const result = PubSubMessageSchema.safeParse(rawPayload);
 
       if (!result.success) {
@@ -111,6 +118,9 @@ async function setupRedisPubSubSubscriber() {
         const hasPlayerB = activeConnections.has(match.playerB);
 
         if (hasPlayerA) {
+          const wsA = activeConnections.get(match.playerA);
+          if (wsA) wsA.data.currentMatchId = matchId;
+
           await redis.hset(matchId, {
             playerA: match.playerA,
             playerB: match.playerB,
@@ -123,6 +133,11 @@ async function setupRedisPubSubSubscriber() {
           setTimeout(() => handleMatchTimeout(matchId), 10000);
         }
 
+        if (hasPlayerB) {
+          const wsB = activeConnections.get(match.playerB);
+          if (wsB) wsB.data.currentMatchId = matchId;
+        }
+
         if (hasPlayerA) matchesProposed.inc();
         if (hasPlayerB) matchesProposed.inc();
 
@@ -131,17 +146,40 @@ async function setupRedisPubSubSubscriber() {
       } else if (payload.type === 'MATCH_READY') {
         const { playerA, playerB, room } = payload;
 
-        if (activeConnections.has(playerA)) matchesCompleted.inc();
-        if (activeConnections.has(playerB)) matchesCompleted.inc();
+        const wsA = activeConnections.get(playerA);
+        if (wsA) {
+          delete wsA.data.currentMatchId;
+          matchesCompleted.inc();
+        }
+
+        const wsB = activeConnections.get(playerB);
+        if (wsB) {
+          delete wsB.data.currentMatchId;
+          matchesCompleted.inc();
+        }
 
         finalizeMatch(playerA, playerB, room);
       } else if (payload.type === 'MATCH_ABORTED') {
-        const { keptPlayerId, failedPlayerId } = payload;
+        const { playerA, playerB, acceptA, acceptB, rejectedBy } = payload;
 
-        if (activeConnections.has(keptPlayerId)) matchesTimedOut.inc();
-        if (activeConnections.has(failedPlayerId)) matchesTimedOut.inc();
+        if (!rejectedBy) {
+          if (!acceptA && activeConnections.has(playerA)) matchesTimedOut.inc();
+          if (!acceptB && activeConnections.has(playerB)) matchesTimedOut.inc();
+        }
 
-        handleMatchAborted(keptPlayerId, failedPlayerId);
+        const wsA = activeConnections.get(playerA);
+        if (wsA) delete wsA.data.currentMatchId;
+
+        const wsB = activeConnections.get(playerB);
+        if (wsB) delete wsB.data.currentMatchId;
+
+        if (!acceptA && !acceptB) {
+          handleMatchBothPlayersAborted(playerA, playerB);
+        } else if (acceptA && !acceptB) {
+          handleMatchOnePlayerAborted(playerB, playerA);
+        } else if (!acceptA && acceptB) {
+          handleMatchOnePlayerAborted(playerA, playerB);
+        }
       }
     } catch (err: any) {
       logger.error(`Error processing Pub/Sub match event: ${err.message}`);
@@ -209,28 +247,40 @@ async function handleMatchTimeout(matchId: string) {
   const deleted = await redis.del(matchId);
   if (deleted === 0) return;
 
-  if (!acceptA && !acceptB) {
-    await abortPlayer(matchData.playerA);
-    await abortPlayer(matchData.playerB);
-  } else if (acceptA && !acceptB) {
-    await redis.publish(
-      MATCH_CHANNEL,
-      JSON.stringify({
-        type: 'MATCH_ABORTED',
-        keptPlayerId: matchData.playerA,
-        failedPlayerId: matchData.playerB,
-      })
-    );
-  } else if (!acceptA && acceptB) {
-    await redis.publish(
-      MATCH_CHANNEL,
-      JSON.stringify({
-        type: 'MATCH_ABORTED',
-        keptPlayerId: matchData.playerB,
-        failedPlayerId: matchData.playerA,
-      })
-    );
-  }
+  await redis.publish(
+    MATCH_CHANNEL,
+    JSON.stringify({
+      type: 'MATCH_ABORTED',
+      playerA: matchData.playerA,
+      playerB: matchData.playerB,
+      acceptA,
+      acceptB,
+    })
+  );
+}
+
+async function handleActiveMatchRejection(playerId: string, matchId: string) {
+  const matchData = await redis.hgetall(matchId);
+  if (!matchData || Object.keys(matchData).length === 0) return;
+
+  const deleted = await redis.del(matchId);
+  if (deleted === 0) return;
+
+  const isPlayerA = matchData.playerA === playerId;
+
+  matchesRejected.inc();
+
+  await redis.publish(
+    MATCH_CHANNEL,
+    JSON.stringify({
+      type: 'MATCH_ABORTED',
+      playerA: matchData.playerA,
+      playerB: matchData.playerB,
+      acceptA: isPlayerA ? false : matchData.acceptA === 'true',
+      acceptB: !isPlayerA ? false : matchData.acceptB === 'true',
+      rejectedBy: playerId,
+    })
+  );
 }
 
 async function abortPlayer(playerId: string) {
@@ -243,19 +293,27 @@ async function abortPlayer(playerId: string) {
   }
 }
 
-async function handleMatchAborted(keptPlayerId: string, failedPlayerId: string) {
-  await abortPlayer(failedPlayerId);
-
-  const wsKept = activeConnections.get(keptPlayerId);
-  if (wsKept) {
-    wsKept.send(
+async function requeuePlayer(playerId: string) {
+  const ws = activeConnections.get(playerId);
+  if (ws) {
+    ws.send(
       stringifyMessage({
         type: 'QUEUED',
         message: 'Opponent failed to accept. Returning to queue.',
       })
     );
-    await matchmaker.joinQueue(keptPlayerId, wsKept.data.elo);
+    await matchmaker.joinQueue(playerId, ws.data.elo);
   }
+}
+
+async function handleMatchBothPlayersAborted(playerA: string, playerB: string) {
+  await abortPlayer(playerA);
+  await abortPlayer(playerB);
+}
+
+async function handleMatchOnePlayerAborted(playerId: string, opponentId: string) {
+  await abortPlayer(playerId);
+  await requeuePlayer(opponentId);
 }
 
 function finalizeMatch(playerA: string, playerB: string, room: string) {
@@ -358,20 +416,38 @@ export async function startMatchmakingService() {
         const { id, elo } = ws.data;
         logger.debug(`Player [${id}] entered queue with Elo [${elo}].`);
 
-        activeConnections.set(id, ws);
-        await matchmaker.joinQueue(id, elo);
-        activeQueuedPlayers.set(activeConnections.size);
+        try {
+          activeConnections.set(id, ws);
 
-        ws.send(stringifyMessage({ type: 'QUEUED', message: 'Successfully queued.' }));
+          const integerElo = Math.round(elo);
+          await matchmaker.joinQueue(id, integerElo);
+
+          activeQueuedPlayers.set(activeConnections.size);
+          ws.send(stringifyMessage({ type: 'QUEUED', message: 'Successfully queued.' }));
+        } catch (err: any) {
+          logger.error(`Failed to add player [${id}] to Redis queue: ${err.message}`);
+          ws.send(
+            stringifyMessage({ type: 'MATCH_FAILED', message: 'Queue initialization failed.' })
+          );
+          ws.close();
+        }
       },
 
       async close(ws) {
-        const { id } = ws.data;
+        const { id, currentMatchId } = ws.data;
         logger.debug(`Player [${id}] left queue/disconnected.`);
 
-        activeConnections.delete(id);
-        await matchmaker.leaveQueue(id);
-        activeQueuedPlayers.set(activeConnections.size);
+        try {
+          if (currentMatchId) {
+            await handleActiveMatchRejection(id, currentMatchId);
+          }
+
+          activeConnections.delete(id);
+          await matchmaker.leaveQueue(id);
+          activeQueuedPlayers.set(activeConnections.size);
+        } catch (err: any) {
+          logger.error(`Error removing player [${id}] from queue on disconnect: ${err.message}`);
+        }
       },
 
       async message(ws, message) {
@@ -389,8 +465,12 @@ export async function startMatchmakingService() {
           const data = result.data;
 
           if (data.type === 'CANCEL') {
-            const { id } = ws.data;
+            const { id, currentMatchId } = ws.data;
             logger.debug(`Player [${id}] cancelled matchmaking.`);
+
+            if (currentMatchId) {
+              await handleActiveMatchRejection(id, currentMatchId);
+            }
 
             ws.send(
               stringifyMessage({ type: 'CANCELLED', message: 'Queue cancelled successfully.' })

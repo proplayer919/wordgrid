@@ -10,19 +10,23 @@ export type Match = {
   room: string;
 };
 
-export class Matchmaker {
-  private luaScriptSha: string | null = null;
-
-  constructor() {
-    this.initLua();
+declare module 'ioredis' {
+  interface Redis {
+    findMatchCustom(
+      queueKey: string,
+      minElo: number,
+      maxElo: number,
+      playerUuid: string
+    ): Promise<string[] | null>;
   }
+}
 
-  private async initLua() {
-    try {
-      this.luaScriptSha = (await redis.script('LOAD', matchFinder)) as string;
-    } catch (err) {
-      console.error('Failed to load Matchmaker Lua script:', err);
-    }
+export class Matchmaker {
+  constructor() {
+    redis.defineCommand('findMatchCustom', {
+      numberOfKeys: 1,
+      lua: matchFinder,
+    });
   }
 
   async joinQueue(playerUuid: string, elo: number): Promise<void> {
@@ -34,45 +38,24 @@ export class Matchmaker {
   }
 
   async findMatch(playerUuid: string, elo: number, tolerance = 50): Promise<Match | null> {
-    const minElo = elo - tolerance;
-    const maxElo = elo + tolerance;
+    const minElo = Math.floor(elo - tolerance);
+    const maxElo = Math.ceil(elo + tolerance);
 
-    let result: string[] | null = null;
+    try {
+      const result = await redis.findMatchCustom(QUEUE_KEY, minElo, maxElo, playerUuid);
 
-    if (this.luaScriptSha) {
-      try {
-        result = (await redis.evalsha(
-          this.luaScriptSha,
-          1,
-          QUEUE_KEY,
-          minElo,
-          maxElo,
-          playerUuid
-        )) as string[] | null;
-      } catch (err: any) {
-        if (err.message?.includes('NOSCRIPT')) {
-          await this.initLua();
-          
-          result = (await redis.eval(matchFinder, 1, QUEUE_KEY, minElo, maxElo, playerUuid)) as
-            string[] | null;
-        } else {
-          throw err;
-        }
+      if (result?.length === 2) {
+        const match: Match = {
+          playerA: result[0]!,
+          playerB: result[1]!,
+          room: `room_${result[0]}_${result[1]}`,
+        };
+
+        await redis.publish(MATCH_CHANNEL, JSON.stringify({ type: 'MATCH_PROPOSED', match }));
+        return match;
       }
-    } else {
-      result = (await redis.eval(matchFinder, 1, QUEUE_KEY, minElo, maxElo, playerUuid)) as
-        string[] | null;
-    }
-
-    if (result?.length === 2) {
-      const match: Match = {
-        playerA: result[0]!,
-        playerB: result[1]!,
-        room: `room_${result[0]}_${result[1]}`,
-      };
-
-      await redis.publish(MATCH_CHANNEL, JSON.stringify({ type: 'MATCH_PROPOSED', match }));
-      return match;
+    } catch (err) {
+      console.error('Error executing matchmaking Lua command:', err);
     }
 
     return null;
