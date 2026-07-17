@@ -3,14 +3,12 @@ WORKDIR /usr/src/app
 
 ENV NODE_ENV=production
 
-COPY package.json bun.lock ./
+COPY server/package.json server/bun.lock ./
 RUN bun install --frozen-lockfile --production
 
-COPY . .
+COPY server/ ./server/
+COPY common/ ./common/
 
 USER bun
 
-EXPOSE 3000/tcp
-EXPOSE 3001/tcp
-
-ENTRYPOINT [ "bun", "run", "--preload", "./patch.ts", "src/index.ts" ]
+ENTRYPOINT [ "bun", "run", "--preload", "server/patch.ts", "server/src/index.ts" ]
