@@ -22,7 +22,7 @@ export default [
       '@typescript-eslint': tsPlugin,
     },
     rules: {
-      'quotes': ['error', 'single'],
+      'quotes': ['error', 'single', { avoidEscape: true }],
       'semi': ['error', 'always'],
       ...tsPlugin.configs.recommended.rules,
     },

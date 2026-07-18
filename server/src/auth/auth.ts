@@ -1,6 +1,6 @@
 import * as jwt from 'jsonwebtoken';
 import { usersCollection } from '../db/mongoCollections';
-import { User, type UserRole } from '../models/user';
+import { User, type UserRole } from '../../../common/models/user';
 import { JWT_SECRET, TOKEN_EXPIRATION } from '../env';
 
 export interface TokenPayload {
@@ -68,6 +68,7 @@ export class AuthHelper {
       role: newUser.role,
       elo: newUser.elo,
       eloDeviation: newUser.eloDeviation,
+      volatility: newUser.volatility,
       wins: newUser.wins,
       losses: newUser.losses,
       draws: newUser.draws,
