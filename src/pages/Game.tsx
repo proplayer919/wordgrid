@@ -1,23 +1,13 @@
 import { useEffect, useState, type RefObject } from 'react';
-import { Board, TIME_CONFIGS } from '../../common/game/board';
-import { Puzzle, type Cell, type DebugStats } from '../../common/game/puzzle';
-import type { GameMode } from '../../common/game/constants';
-import { formatDateAsCountdown } from '../../common/utils';
-import { scoreWord } from '../../common/game/score';
-import { loadDailyBoard, loadInfiniteBoard, saveDailyBoard, saveInfiniteBoard } from '../lib/store';
-import { WORDS } from '../../common/data';
+import { Board, TIME_CONFIGS } from 'common/game/board';
+import { Puzzle, type DebugStats } from 'common/game/puzzle';
+import type { GameMode } from 'common/game/constants';
+import { formatDateAsCountdown } from 'common/utils';
+import { loadDailyBoard, loadInfiniteBoard, saveDailyBoard, saveInfiniteBoard } from 'src/lib/store';
 
-import { BoardGrid } from '../components/BoardGrid/BoardGrid';
-import { Sidebar } from '../components/Sidebar/Sidebar';
-
-type GuessModalState = { cell: Cell; value: string };
-type MessageModalState = { title: string; message: string };
-type ConfirmModalState = {
-  title: string;
-  message: string;
-  confirmLabel: string;
-  onConfirm: () => void;
-};
+import { BoardGrid } from 'components/BoardGrid/BoardGrid';
+import { Sidebar } from 'components/Sidebar/Sidebar';
+import type { GuessModalState, MessageModalState, ConfirmModalState } from 'src/components/Modal/modalTypes';
 
 interface GameProps {
   mode: GameMode;
@@ -248,7 +238,7 @@ export function Game({
       board.startedAt = new Date();
     }
     setMessageModal(null);
-    setGuessModal({ cell: board.puzzle.grid[row][col], value: '' });
+    setGuessModal({ cell: board.puzzle.grid[row][col], value: '', board });
   };
 
   const openResetConfirmModal = () => {
@@ -267,33 +257,26 @@ export function Game({
     const normalizedWord = word.trim().toLowerCase();
     if (!normalizedWord) return { success: false, message: 'Please enter a word' };
 
-    board.guessedWords.push(normalizedWord);
-    const cell = board.puzzle.grid[row][col];
+    const moveResult = board.addMove({
+      playerUuid: 'local',
+      row,
+      col,
+      word: normalizedWord,
+      timestamp: new Date(),
+    });
 
-    if (normalizedWord === '!exact') {
-      setMessageModal({
-        title: 'Exact word',
-        message: `The exact word for this cell is: "${cell.bestWord}"`,
-      });
-      return { success: true, message: 'Exact word revealed' };
-    }
-    if (board.usedWords.has(normalizedWord))
-      return { success: false, message: 'This word has already been used somewhere else' };
-    if (!WORDS.includes(normalizedWord))
-      return { success: false, message: 'This is not a valid word' };
-
-    if (cell.rowCondition.test(normalizedWord) && cell.colCondition.test(normalizedWord)) {
-      cell.word = normalizedWord;
-      cell.score = scoreWord(
-        normalizedWord,
-        Puzzle.getValidWordsForConditions(cell.rowCondition, cell.colCondition)
-      );
-      board.puzzle.grid[row][col] = cell;
-      board.usedWords.add(normalizedWord);
-      board.totalScore += cell.score || 0;
-
-      if (board.puzzle.grid.flat().every(c => c.word)) {
-        board.endedAt = new Date();
+    switch (moveResult) {
+      case 'UsedElsewhere':
+        return { success: false, message: 'This word has already been used somewhere else' };
+      case 'InvalidWord':
+        return { success: false, message: 'This is not a valid word' };
+      case 'ConditionNotMet':
+        return { success: false, message: 'This doesn\'t meet the conditions for the cell' };
+      case 'Success':
+        persistBoard(board);
+        return { success: true, message: `"${normalizedWord}" was placed.` };
+      case 'SuccessEndGame':
+        persistBoard(board);
         setGuessModal(null);
         setMessageModal(null);
         setConfirmModal({
@@ -306,11 +289,55 @@ export function Game({
             setConfirmModal(null);
           },
         });
-      }
-      persistBoard(Object.assign(Object.create(Object.getPrototypeOf(board)), board));
-      return { success: true, message: `"${normalizedWord}" was placed.` };
+        return { success: true, message: `"${normalizedWord}" was placed.` };
+      default:
+        return { success: false, message: 'An unknown error occurred' };
     }
-    return { success: false, message: 'This doesn\'t meet the conditions for the cell' };
+
+    // board.guessedWords.push(normalizedWord);
+    // const cell = board.puzzle.grid[row][col];
+
+    // if (normalizedWord === '!exact') {
+    //   setMessageModal({
+    //     title: 'Exact word',
+    //     message: `The exact word for this cell is: "${cell.bestWord}"`,
+    //   });
+    //   return { success: true, message: 'Exact word revealed' };
+    // }
+    // if (board.usedWords.has(normalizedWord))
+    //   return { success: false, message: 'This word has already been used somewhere else' };
+    // if (!WORDS.includes(normalizedWord))
+    //   return { success: false, message: 'This is not a valid word' };
+
+    // if (cell.rowCondition.test(normalizedWord) && cell.colCondition.test(normalizedWord)) {
+    //   cell.word = normalizedWord;
+    //   cell.score = scoreWord(
+    //     normalizedWord,
+    //     Puzzle.getValidWordsForConditions(cell.rowCondition, cell.colCondition)
+    //   );
+    //   board.puzzle.grid[row][col] = cell;
+    //   board.usedWords.add(normalizedWord);
+    //   board.totalScore += cell.score || 0;
+
+    //   if (board.puzzle.grid.flat().every(c => c.word)) {
+    //     board.endedAt = new Date();
+    //     setGuessModal(null);
+    //     setMessageModal(null);
+    //     setConfirmModal({
+    //       title: 'Analysis Mode',
+    //       message:
+    //         'You have completed the puzzle! Would you like to enter analysis mode to see the best possible words for each cell?',
+    //       confirmLabel: 'Enter Analysis Mode',
+    //       onConfirm: () => {
+    //         setAnalysisMode(true);
+    //         setConfirmModal(null);
+    //       },
+    //     });
+    //   }
+    //   persistBoard(Object.assign(Object.create(Object.getPrototypeOf(board)), board));
+    //   return { success: true, message: `"${normalizedWord}" was placed.` };
+    // }
+    // return { success: false, message: 'This doesn\'t meet the conditions for the cell' };
   };
 
   return (

@@ -148,10 +148,12 @@ export function processMultiplayerMatch(
       self.mu +
       Math.pow(nextPhi, 2) * (g(opponent.phi) * (score - eOpp) + g(pP.phi) * (score - eP));
 
+    const { elo, rd } = fromGlicko2(nextMu, nextPhi);
+
     return {
       ...player,
-      elo: Math.max(100, Math.min(3000, Math.round(nextMu * GLICKO2_SCALE + STARTING_ELO))),
-      eloDeviation: Math.max(30, Math.round(nextPhi * GLICKO2_SCALE)),
+      elo: Math.max(100, Math.min(3000, elo)),
+      eloDeviation: Math.max(30, rd),
       volatility: nextSigma,
       wins: player.wins + (score === 1 ? 1 : 0),
       losses: player.losses + (score === 0 ? 1 : 0),

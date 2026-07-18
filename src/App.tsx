@@ -1,18 +1,12 @@
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
-import type { GameMode } from '../common/constants';
-import { type Cell, type DebugStats } from '../common/puzzle';
-import { ModalsContainer } from './components/Modal/ModalsContainer';
-import { Game } from './pages/Game';
-import './App.css';
-
-type GuessModalState = { cell: Cell; value: string };
-type MessageModalState = { title: string; message: string };
-type ConfirmModalState = {
-  title: string;
-  message: string;
-  confirmLabel: string;
-  onConfirm: () => void;
-};
+import type { GameMode } from 'common/game/constants';
+import { type DebugStats } from 'common/game/puzzle';
+import {
+  ModalsContainer
+} from 'components/Modal/ModalsContainer';
+import { Game } from 'pages/Game';
+import 'src/App.css';
+import type { GuessModalState, MessageModalState, ConfirmModalState } from 'components/Modal/modalTypes';
 
 function getInitialMode(): GameMode {
   if (globalThis.window === undefined) return 'daily';

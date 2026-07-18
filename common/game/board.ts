@@ -1,5 +1,8 @@
+import { WORDS } from '../data';
 import { BOARD_SEED_ALPHABET, BOARD_SEED_LENGTH, type GameMode } from './constants';
+import type { Move, MoveResult } from './move';
 import { Puzzle } from './puzzle';
+import { scoreWord } from './score';
 
 export type TimeConfig = {
   unlimited: boolean;
@@ -32,6 +35,8 @@ export class Board {
   usedWords: Set<string> = new Set();
   totalScore: number = 0;
 
+  private readonly history: Move[] = [];
+
   constructor(seed: number, boardGameMode: GameMode, timeConfig: TimeConfig, puzzle?: Puzzle) {
     this.seed = seed;
     this.boardGameMode = boardGameMode;
@@ -39,6 +44,48 @@ export class Board {
     this.seedString = boardGameMode === 'daily' ? this.getDateString() : this.getSeedString();
 
     this.puzzle = puzzle ?? new Puzzle(seed);
+  }
+
+  addMove(move: Move): MoveResult {
+    this.guessedWords.push(move.word);
+    const cell = this.puzzle.grid[move.row]![move.col];
+
+    if (this.usedWords.has(move.word)) {
+      return 'UsedElsewhere';
+    }
+
+    if (!WORDS.includes(move.word)) {
+      return 'InvalidWord';
+    }
+
+    if (!cell?.rowCondition.test(move.word) || !cell?.colCondition.test(move.word)) {
+      return 'ConditionNotMet';
+    }
+
+    const score = scoreWord(
+      move.word,
+      Puzzle.getValidWordsForConditions(cell.rowCondition, cell.colCondition)
+    );
+    move.score = score;
+
+    cell.word = move.word;
+    cell.score = score;
+
+    this.puzzle.grid[move.row]![move.col] = cell;
+
+    this.totalScore += score;
+    this.usedWords.add(move.word);
+    this.history.push(move);
+
+    if (this.puzzle.grid.flat().every(c => c.word)) {
+      this.endedAt = new Date();
+      return 'SuccessEndGame';
+    }
+    return 'Success';
+  }
+
+  getHistory(): Move[] {
+    return [...this.history];
   }
 
   getSeedString() {
@@ -53,11 +100,15 @@ export class Board {
     return seedStr;
   }
 
-  getDateString(): string {
-    const day = String(this.createdAt.getDate()).padStart(2, '0');
-    const month = String(this.createdAt.getMonth() + 1).padStart(2, '0'); // Months are zero-based
-    const year = this.createdAt.getFullYear();
+  static getDateStringFromDate(date: Date): string {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based
+    const year = date.getFullYear();
     return `${day}-${month}-${year}`;
+  }
+
+  getDateString(): string {
+    return Board.getDateStringFromDate(new Date());
   }
 
   getSecondsRemaining(): number {

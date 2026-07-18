@@ -14,10 +14,10 @@ import {
   IconStarFilled,
   IconWeight,
 } from '@tabler/icons-react';
-import { Board } from '../../../common/board';
-import { formatSecondsAsCountdown } from '../../../common/utils';
-import type { GameMode } from '../../../common/constants';
-import './Sidebar.css';
+import { Board } from 'common/game/board';
+import { formatSecondsAsCountdown } from 'common/utils';
+import type { GameMode } from 'common/game/constants';
+import 'components/Sidebar/Sidebar.css';
 
 interface SidebarProps {
   board: Board | null;

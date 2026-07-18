@@ -10,6 +10,7 @@ export class User implements EloHolder {
 
   elo: number = 1200;
   eloDeviation: number = 350;
+  volatility: number = 0.06;
 
   wins: number = 0;
   losses: number = 0;

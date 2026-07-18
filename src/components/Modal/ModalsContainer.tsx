@@ -1,25 +1,25 @@
 import React, { type RefObject, type SubmitEvent } from 'react';
 import { IconBulb, IconGitCommit, IconCalendarDue, IconX } from '@tabler/icons-react';
-import { scoreWord } from '../../../common/score';
-import { WORDS } from '../../../common/data';
-import { BUILD_TIMESTAMP, COMMIT, COMMIT_NUMBER_THIS_MONTH } from '../../version';
-import './Modal.css';
-import { Puzzle, type DebugStats, type Cell } from '../../../common/puzzle';
+import { scoreWord } from 'common/game/score';
+import { WORDS } from 'common/data';
+import { BUILD_TIMESTAMP, COMMIT, COMMIT_NUMBER_THIS_MONTH } from 'src/version';
+import 'components/Modal/Modal.css';
+import { Puzzle, type DebugStats } from 'common/game/puzzle';
+import type {
+  GuessModalState,
+  MessageModalState,
+  ConfirmModalState,
+} from 'components/Modal/modalTypes';
 
 interface ModalsContainerProps {
-  guessModal: { cell: Cell; value: string } | null;
-  messageModal: { title: string; message: string } | null;
-  confirmModal: {
-    title: string;
-    message: string;
-    confirmLabel: string;
-    onConfirm: () => void;
-  } | null;
+  guessModal: GuessModalState | null;
+  messageModal: MessageModalState | null;
+  confirmModal: ConfirmModalState | null;
   debugModal: boolean;
   debugStats: DebugStats | null;
   infoModal: boolean;
   guessInputRef: RefObject<HTMLInputElement | null>;
-  setGuessModal: React.Dispatch<React.SetStateAction<{ cell: Cell; value: string } | null>>;
+  setGuessModal: React.Dispatch<React.SetStateAction<GuessModalState | null>>;
   closeGuessModal: () => void;
   getHintForGuessModal: () => void;
   handleGuessSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
@@ -48,6 +48,12 @@ export const ModalsContainer: React.FC<ModalsContainerProps> = ({
   handleClearDebugStats,
   closeInfoModal,
 }) => {
+  const guessValue = guessModal?.value.toLowerCase().trim() || '';
+  const isGuessValidWord = WORDS.includes(guessValue);
+  const isGuessValidForCell =
+    guessModal && Puzzle.getValidWordsForCell(guessModal.cell).includes(guessValue);
+  const isGuessAlreadyUsed = guessModal?.board.usedWords.has(guessValue) || false;
+
   return (
     <>
       {/* Guess Modal */}
@@ -91,14 +97,7 @@ export const ModalsContainer: React.FC<ModalsContainerProps> = ({
                   ref={guessInputRef}
                   id="guessInput"
                   className={
-                    guessModal.value &&
-                    (!WORDS.includes(guessModal.value.toLowerCase().trim()) ||
-                      !Puzzle.getValidWordsForCell(guessModal.cell).includes(
-                        guessModal.value.toLowerCase().trim()
-                      )) &&
-                    !guessModal.value.startsWith('!')
-                      ? 'invalid'
-                      : ''
+                    isGuessValidWord && isGuessValidForCell && !isGuessAlreadyUsed ? '' : 'invalid'
                   }
                   autoComplete="off"
                   value={guessModal.value}
@@ -106,36 +105,46 @@ export const ModalsContainer: React.FC<ModalsContainerProps> = ({
                     setGuessModal(curr => (curr ? { ...curr, value: e.target.value } : curr))
                   }
                 />
-                {guessModal.value && WORDS.includes(guessModal.value.toLowerCase().trim()) && (
-                  <span className="modal-sub">
-                    Score:{' '}
-                    {scoreWord(
-                      guessModal.value,
-                      Puzzle.getValidWordsForConditions(
-                        guessModal.cell.rowCondition,
-                        guessModal.cell.colCondition
-                      )
-                    )}{' '}
-                    /{' '}
-                    {scoreWord(
-                      Puzzle.getBestWordForCell(guessModal.cell),
-                      Puzzle.getValidWordsForConditions(
-                        guessModal.cell.rowCondition,
-                        guessModal.cell.colCondition
-                      )
-                    )}
-                  </span>
+                {guessModal.value &&
+                  isGuessValidWord &&
+                  isGuessValidForCell &&
+                  !isGuessAlreadyUsed && (
+                    <span className="modal-sub">
+                      Score:{' '}
+                      {scoreWord(
+                        guessModal.value,
+                        Puzzle.getValidWordsForConditions(
+                          guessModal.cell.rowCondition,
+                          guessModal.cell.colCondition
+                        )
+                      )}{' '}
+                      /{' '}
+                      {scoreWord(
+                        Puzzle.getBestWordForCell(guessModal.cell),
+                        Puzzle.getValidWordsForConditions(
+                          guessModal.cell.rowCondition,
+                          guessModal.cell.colCondition
+                        )
+                      )}
+                    </span>
+                  )}
+                {guessModal.value && isGuessAlreadyUsed && (
+                  <span className="modal-sub">Already used</span>
+                )}
+                {guessModal.value && !isGuessValidWord && (
+                  <span className="modal-sub">Not a valid word</span>
+                )}
+                {guessModal.value && !isGuessValidForCell && (
+                  <span className="modal-sub">Not a valid word for this cell</span>
                 )}
                 <div className="modal-controls">
                   <button
                     type="submit"
                     disabled={
-                      (!guessModal.value ||
-                        !WORDS.includes(guessModal.value.toLowerCase().trim()) ||
-                        !Puzzle.getValidWordsForCell(guessModal.cell).includes(
-                          guessModal.value.toLowerCase().trim()
-                        )) &&
-                      !guessModal.value.startsWith('!')
+                      !guessModal.value ||
+                      !isGuessValidWord ||
+                      !isGuessValidForCell ||
+                      isGuessAlreadyUsed
                     }
                   >
                     Guess

@@ -1,9 +1,9 @@
 import React from 'react';
-import logo from '../../assets/logo.png';
-import { Board } from '../../../common/board';
-import type { Cell } from '../../../common/puzzle';
-import { textSizeForWord } from '../../../common/utils';
-import './BoardGrid.css';
+import logo from 'src/assets/logo.png';
+import { Board } from 'common/game/board';
+import type { Cell } from 'common/game/puzzle';
+import { textSizeForWord } from 'common/utils';
+import 'components/BoardGrid/BoardGrid.css';
 
 interface BoardGridProps {
   board: Board | null;
