@@ -13,7 +13,7 @@ import {
   matchesRejected,
 } from '../db/telemetry';
 
-const logger = createLogger('MatchmakerService');
+const logger = createLogger('MatchmakingService');
 const matchmaker = new Matchmaker();
 
 let tickMatchesProposed = 0;
@@ -561,7 +561,7 @@ export async function startMatchmakingService() {
 
   setupGracefulShutdown(serviceServer);
 
-  logger.info(`Matchmaking Service running on port ${serviceServer.port}.`);
+  logger.info(`Matchmaking service is running on port ${serviceServer.port}.`);
 
   setTimeout(matchmakingTick, 1000);
 }
