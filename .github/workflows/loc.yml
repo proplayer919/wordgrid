@@ -16,10 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Launch the local action
+      - name: Generate LoC Badge
         uses: shadowmoose/GHA-LoC-Badge@1.0.0
         id: badge
         with:
+          debug: true
           directory: ./
           badge: ./output/badge.svg
           ignore: 'node_modules|\.git|\.github|\.vscode|\.idea|dist|build|out|coverage|\.cache|\.next|\.nuxt|\.parcel-cache|\.vercel|\.vercel_build_output|\.vercel_output'
