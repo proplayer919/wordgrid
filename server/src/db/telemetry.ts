@@ -41,6 +41,7 @@ export const matchesRejected = new client.Counter({
 const bunJscHeapUsedBytes = new client.Gauge({
   name: 'bun_jsc_heap_size_used_bytes',
   help: 'Total memory used by JavaScriptCore heap objects in bytes.',
+  registers: [register],
 });
 
 setInterval(() => {
