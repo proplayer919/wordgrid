@@ -57,7 +57,7 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--web.listen-address=:1256'
     depends_on:
-      - serve
+      - server
 
   grafana:
     image: grafana/grafana:latest
