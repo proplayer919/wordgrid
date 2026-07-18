@@ -77,6 +77,8 @@ services:
     command:
       - --docker_only=true
       - --housekeeping_interval=10s
+      - --disable_root_cgroup_stats=false
+      - --disable_metrics=disk,diskIO,tcp,udp
 
   grafana:
     image: grafana/grafana:latest
