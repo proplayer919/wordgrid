@@ -4,8 +4,6 @@ import type { Collection } from 'mongodb';
 
 const logger = createLogger('MongoCollections');
 
-// TODO: Indexes
-
 function getCollectionOrInitialise(collectionName: string): Collection {
   const db = mongo.db();
   const collection = db.collection(collectionName);
@@ -22,3 +20,6 @@ function getCollectionOrInitialise(collectionName: string): Collection {
 export const usersCollection = getCollectionOrInitialise('users');
 export const friendshipsCollection = getCollectionOrInitialise('friendships');
 export const friendRequestsCollection = getCollectionOrInitialise('friendRequests');
+
+usersCollection.createIndex({ username: 1 }, { unique: true });
+usersCollection.createIndex({ uuid: 1 }, { unique: true });

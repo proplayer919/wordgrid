@@ -26,5 +26,11 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+
+  "include": [
+    "**/*.ts",
+    "../common/**/*.ts",
+    "../common/shims.d.ts"
+  ]
 }

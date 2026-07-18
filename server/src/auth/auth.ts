@@ -11,26 +11,35 @@ export interface TokenPayload {
 
 export class AuthHelper {
   /**
-   * Hashes a password using Bun's native password hashing engine.
-   * Defaults to Argon2id, which is structurally superior to bcrypt.
+   * Hashes a password using Argon2id algorithm
+   * @param password The plain text password to hash
+   * @returns A promise that resolves to the hashed password
    */
   private static async hashPassword(password: string): Promise<string> {
     return await Bun.password.hash(password, {
       algorithm: 'argon2id',
-      memoryCost: 65536,
+      memoryCost: 16 * 1024, // 16 MB
       timeCost: 3,
     });
   }
 
   /**
    * Verifies a password against a stored hash
+   * @param password The plain text password to verify
+   * @param storedHash The stored hash to compare against
+   * @returns A promise that resolves to true if the password matches the hash, false otherwise
    */
   private static async verifyPassword(password: string, storedHash: string): Promise<boolean> {
     return await Bun.password.verify(password, storedHash);
   }
 
   /**
-   * Registers a new user account if the username is available
+   * Registers a new user with the given username, password, and role
+   * @param username The username for the new user
+   * @param password The password for the new user
+   * @param role The role for the new user
+   * @returns A promise that resolves to the created user object
+   * @throws Error if the username is already taken
    */
   public static async register(
     username: string,
@@ -67,6 +76,9 @@ export class AuthHelper {
 
   /**
    * Validates user credentials and returns a signed JWT access token
+   * @param username The username of the user to login
+   * @param password The password of the user to login
+   * @returns A promise that resolves to an object containing the access token and user UUID
    */
   public static async login(
     username: string,
@@ -99,14 +111,18 @@ export class AuthHelper {
   }
 
   /**
-   * Generates a signed JWT with the payload
+   * Generates a signed JWT token with the given payload
+   * @param payload The payload to include in the JWT token
+   * @returns A signed JWT token as a string
    */
   public static generateToken(payload: TokenPayload): string {
     return jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRATION });
   }
 
   /**
-   * Verifies an incoming JWT token and returns its decoded payload
+   * Verifies a JWT token and returns the decoded payload
+   * @param token The JWT token to verify
+   * @returns The decoded payload of the JWT token
    */
   public static verifyToken(token: string): TokenPayload {
     return jwt.verify(token, JWT_SECRET) as TokenPayload;

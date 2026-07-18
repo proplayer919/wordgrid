@@ -1,4 +1,4 @@
-import { processMultiplayerMatch, type EloHolder } from '../elo';
+import { type EloHolder } from '../elo/elo';
 
 export type UserRole = 'user' | 'admin' | 'owner';
 
@@ -20,9 +20,5 @@ export class User implements EloHolder {
     this.username = username;
     this.passwordHash = passwordHash;
     this.role = role;
-  }
-
-  processResult(playerA: User, playerB: User, scoreA: number, scoreB: number, puzzleElo: number) {
-    processMultiplayerMatch(playerA, playerB, scoreA, scoreB, puzzleElo);
   }
 }

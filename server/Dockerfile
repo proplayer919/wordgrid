@@ -1,4 +1,5 @@
-FROM oven/bun:1 AS production
+ARG CACHEBUST=1
+FROM oven/bun:canary AS production
 WORKDIR /usr/src/app
 
 ENV NODE_ENV=production
@@ -14,4 +15,4 @@ COPY common/ ./common/
 
 USER bun
 
-ENTRYPOINT [ "bun", "--preload", "./server/patch.ts", "server/src/index.ts" ]
+ENTRYPOINT [ "bun", "server/src/index.ts" ]
