@@ -26,7 +26,6 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
-    "server/**/*.ts",
     "common/**/*.ts",
     "common/shims.d.ts"
   ]
