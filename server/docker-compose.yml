@@ -60,7 +60,7 @@ services:
       - server
 
   cadvisor:
-    image: jacobalberty/cadvisor:v0.49.1
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
     container_name: wordgrid-cadvisor
     restart: unless-stopped
     privileged: true
