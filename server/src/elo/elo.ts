@@ -1,15 +1,10 @@
 export interface EloHolder {
-  // Current Elo rating of the player
   elo: number;
-
-  // Uncertainty factor (RD). Standard baseline bounds are roughly 30 to 350.
   eloDeviation: number;
-
+  volatility: number;
   wins: number;
   losses: number;
   draws: number;
-
-  // Last played timestamp
   lastPlayed?: Date;
 }
 
@@ -20,77 +15,104 @@ export interface MatchResult {
   expectedB: number;
 }
 
-const Q = Math.log(10) / 400; // ~0.005756
-const DECAY_CONSTANT_C = 25; // Controls how fast uncertainty grows over time blocks
+const GLICKO2_SCALE = 173.7178;
+const STARTING_ELO = 1200;
+const TAU = 0.5;
 
 /**
- * Calculates the Glicko g(RD) factor based on the player's rating deviation (RD).
- * @param rd The rating deviation of the player
- * @returns The g(RD) factor used in Glicko calculations
+ * Converts a rating and deviation to the Glicko-2 scale
+ * @param elo The Elo rating
+ * @param rd The rating deviation
+ * @returns An object containing mu and phi on the Glicko-2 scale
  */
-function getG(rd: number): number {
-  return 1 / Math.sqrt(1 + (3 * Q * Q * rd * rd) / (Math.PI * Math.PI));
+function toGlicko2(elo: number, rd: number): { mu: number; phi: number } {
+  return {
+    mu: (elo - STARTING_ELO) / GLICKO2_SCALE,
+    phi: rd / GLICKO2_SCALE,
+  };
 }
 
 /**
- * Calculates the expected score for a player against an opponent using the Glicko formula.
- * @param ratingA The Elo rating of player A
- * @param ratingB The Elo rating of player B
- * @param gOpponent The g(RD) factor for the opponent
- * @returns The expected score for player A against player B
+ * Converts a Glicko-2 scale rating and deviation back to Elo and rating deviation
+ * @param mu The Glicko-2 scale rating
+ * @param phi The Glicko-2 scale deviation
+ * @returns An object containing the Elo rating and rating deviation
  */
-function getGlickoExpectedScore(ratingA: number, ratingB: number, gOpponent: number): number {
-  return 1 / (1 + Math.pow(10, (-gOpponent * (ratingA - ratingB)) / 400));
+function fromGlicko2(mu: number, phi: number): { elo: number; rd: number } {
+  return {
+    elo: Math.round(mu * GLICKO2_SCALE + STARTING_ELO),
+    rd: Math.round(phi * GLICKO2_SCALE),
+  };
 }
 
 /**
- * Calculates the number of decay periods that have elapsed since the last match played.
- * @param lastPlayed The timestamp of the last match played by the player
- * @param currentMatchTime The timestamp of the current match (defaults to now)
- * @returns The number of decay periods that have elapsed
+ * Calculates the G function for Glicko-2
+ * @param phi The Glicko-2 scale deviation
+ * @returns The G value
  */
-function calculateDecayPeriods(lastPlayed?: Date, currentMatchTime: Date = new Date()): number {
-  if (!lastPlayed) return 0;
-
-  const msDiff = currentMatchTime.getTime() - new Date(lastPlayed).getTime();
-  if (msDiff <= 0) return 0;
-
-  const oneDayInMs = 1000 * 60 * 60 * 24;
-  return msDiff / oneDayInMs;
+function g(phi: number): number {
+  return 1 / Math.sqrt(1 + (3 * phi * phi) / (Math.PI * Math.PI));
 }
 
 /**
- * Computes the decayed rating deviation (RD) based on the number of periods elapsed.
- * @param deviation The current rating deviation (RD) of the player
- * @param periods The number of decay periods that have elapsed since the last match
- * @param c The decay constant that controls how fast uncertainty grows over time
- * @returns The decayed rating deviation (RD) after applying the decay formula
+ * Calculates the E function for Glicko-2
+ * @param mu The player's mu
+ * @param muJ The opponent's mu
+ * @param phiJ The opponent's phi
+ * @returns The expected outcome
  */
-function computeDecayedRd(deviation: number, periods: number, c: number): number {
-  const decayedRd = Math.sqrt(deviation * deviation + c * c * periods);
-  return Math.min(350, Math.round(decayedRd)); // Hard cap at system max limit (350)
+function getE(mu: number, muJ: number, phiJ: number): number {
+  return 1 / (1 + Math.exp(-g(phiJ) * (mu - muJ)));
 }
 
 /**
- * On-demand function to see how much a player's uncertainty (RD) has decayed
- * without modifying their actual historical ELO rating profile.
- * @param player The current player profile snapshot
- * @param checkAt Optional date parameter (defaults to right now)
- * @returns The projected eloDeviation integer
+ * Updates a player's volatility
+ * @param delta The difference between expected and actual performance
+ * @param phi The current phi
+ * @param sigma The current volatility
+ * @param v The variance of performance
+ * @returns The new volatility value
  */
-export function previewDecayOnly(player: EloHolder, checkAt: Date = new Date()): number {
-  const periods = calculateDecayPeriods(player.lastPlayed, checkAt);
-  return computeDecayedRd(player.eloDeviation, periods, DECAY_CONSTANT_C);
+function updateVolatility(delta: number, phi: number, sigma: number, v: number): number {
+  const a = Math.log(Math.pow(sigma, 2));
+  const f = (x: number) => {
+    const expX = Math.exp(x);
+    return (
+      (expX * (Math.pow(delta, 2) - Math.pow(phi, 2) - v - expX)) /
+        (2 * Math.pow(Math.pow(phi, 2) + v + expX, 2)) -
+      (x - a) / Math.pow(TAU, 2)
+    );
+  };
+
+  let A = a;
+  let B = delta * delta - phi * phi - v > 0 ? Math.log(delta * delta - phi * phi - v) : a - TAU;
+
+  let fA = f(A);
+  let fB = f(B);
+
+  let iterations = 0;
+  while (Math.abs(B - A) > 0.000001 && iterations < 20) {
+    let C = A + ((A - B) * fA) / (fB - fA);
+    let fC = f(C);
+    if (fC * fB < 0) {
+      A = B;
+      fA = fB;
+    }
+    B = C;
+    fB = fC;
+    iterations++;
+  }
+  return Math.exp(A / 2);
 }
 
 /**
- * Processes a multiplayer match between two players, updating their Elo ratings and deviations based on the match outcome and puzzle Elo.
- * @param playerA The first player
- * @param playerB The second player
- * @param scoreA The score of the first player
- * @param scoreB The score of the second player
+ * Processes a match between two players
+ * @param playerA The EloHolder object for player A
+ * @param playerB The EloHolder object for player B
+ * @param scoreA The score of player A (1, 0.5, or 0)
+ * @param scoreB The score of player B (1, 0.5, or 0)
  * @param puzzleElo The Elo rating of the puzzle
- * @returns The result of the match
+ * @returns A MatchResult object containing the updated EloHolder objects
  */
 export function processMultiplayerMatch(
   playerA: EloHolder,
@@ -99,78 +121,52 @@ export function processMultiplayerMatch(
   scoreB: number,
   puzzleElo: number
 ): MatchResult {
-  const puzzleRD = 50;
-  const currentMatchTime = new Date();
+  const pA = toGlicko2(playerA.elo, playerA.eloDeviation);
+  const pB = toGlicko2(playerB.elo, playerB.eloDeviation);
+  const pP = toGlicko2(puzzleElo, 50);
 
-  const periodsA = calculateDecayPeriods(playerA.lastPlayed, currentMatchTime);
-  const periodsB = calculateDecayPeriods(playerB.lastPlayed, currentMatchTime);
+  const calculatePlayerUpdate = (
+    player: EloHolder,
+    self: { mu: number; phi: number },
+    opponent: { mu: number; phi: number },
+    score: number
+  ) => {
+    const eOpp = getE(self.mu, opponent.mu, opponent.phi);
+    const eP = getE(self.mu, pP.mu, pP.phi);
 
-  const activeRdA = computeDecayedRd(playerA.eloDeviation, periodsA, DECAY_CONSTANT_C);
-  const activeRdB = computeDecayedRd(playerB.eloDeviation, periodsB, DECAY_CONSTANT_C);
+    const vInv =
+      Math.pow(g(opponent.phi), 2) * eOpp * (1 - eOpp) + Math.pow(g(pP.phi), 2) * eP * (1 - eP);
 
-  let actualA = 0.5;
-  let actualB = 0.5;
-  if (scoreA > scoreB) {
-    actualA = 1.0;
-    actualB = 0.0;
-  } else if (scoreB > scoreA) {
-    actualA = 0.0;
-    actualB = 1.0;
-  }
+    const v = 1 / Math.max(vInv, 0.0001);
+    const delta = v * (g(opponent.phi) * (score - eOpp) + g(pP.phi) * (score - eP));
 
-  const gB = getG(activeRdB);
-  const gA = getG(activeRdA);
-  const gPuzzle = getG(puzzleRD);
+    const nextSigma = updateVolatility(delta, self.phi, player.volatility, v);
+    const phiStar = Math.sqrt(Math.pow(self.phi, 2) + Math.pow(nextSigma, 2));
 
-  const h2hExpA = getGlickoExpectedScore(playerA.elo, playerB.elo, gB);
-  const puzzleExpA = getGlickoExpectedScore(playerA.elo, puzzleElo, gPuzzle);
-  const blendedExpA = 0.7 * h2hExpA + 0.3 * puzzleExpA;
+    const nextPhi = 1 / Math.sqrt(1 / Math.pow(Math.min(phiStar, 2.5), 2) + 1 / v);
+    const nextMu =
+      self.mu +
+      Math.pow(nextPhi, 2) * (g(opponent.phi) * (score - eOpp) + g(pP.phi) * (score - eP));
 
-  const h2hExpB = getGlickoExpectedScore(playerB.elo, playerA.elo, gA);
-  const puzzleExpB = getGlickoExpectedScore(playerB.elo, puzzleElo, gPuzzle);
-  const blendedExpB = 0.7 * h2hExpB + 0.3 * puzzleExpB;
+    return {
+      ...player,
+      elo: Math.max(100, Math.min(3000, Math.round(nextMu * GLICKO2_SCALE + STARTING_ELO))),
+      eloDeviation: Math.max(30, Math.round(nextPhi * GLICKO2_SCALE)),
+      volatility: nextSigma,
+      wins: player.wins + (score === 1 ? 1 : 0),
+      losses: player.losses + (score === 0 ? 1 : 0),
+      draws: player.draws + (score === 0.5 ? 1 : 0),
+      lastPlayed: new Date(),
+    };
+  };
 
-  const dSquareInvA =
-    Q *
-    Q *
-    (0.7 * gB * gB * h2hExpA * (1 - h2hExpA) +
-      0.3 * gPuzzle * gPuzzle * puzzleExpA * (1 - puzzleExpA));
-
-  const dSquareInvB =
-    Q *
-    Q *
-    (0.7 * gA * gA * h2hExpB * (1 - h2hExpB) +
-      0.3 * gPuzzle * gPuzzle * puzzleExpB * (1 - puzzleExpB));
-
-  const nextRdA = Math.max(30, 1 / Math.sqrt(1 / (activeRdA * activeRdA) + dSquareInvA));
-  const nextRdB = Math.max(30, 1 / Math.sqrt(1 / (activeRdB * activeRdB) + dSquareInvB));
-
-  const ratingDeltaA =
-    (Q / (1 / (activeRdA * activeRdA) + dSquareInvA)) *
-    (0.7 * gB * (actualA - h2hExpA) + 0.3 * gPuzzle * (actualA - puzzleExpA));
-
-  const ratingDeltaB =
-    (Q / (1 / (activeRdB * activeRdB) + dSquareInvB)) *
-    (0.7 * gA * (actualB - h2hExpB) + 0.3 * gPuzzle * (actualB - puzzleExpB));
+  const updatedA = calculatePlayerUpdate(playerA, pA, pB, scoreA);
+  const updatedB = calculatePlayerUpdate(playerB, pB, pA, scoreB);
 
   return {
-    playerA: {
-      elo: Math.round(playerA.elo + ratingDeltaA),
-      eloDeviation: Math.round(nextRdA),
-      wins: playerA.wins + (actualA === 1.0 ? 1 : 0),
-      losses: playerA.losses + (actualA === 0.0 ? 1 : 0),
-      draws: playerA.draws + (actualA === 0.5 ? 1 : 0),
-      lastPlayed: currentMatchTime,
-    },
-    playerB: {
-      elo: Math.round(playerB.elo + ratingDeltaB),
-      eloDeviation: Math.round(nextRdB),
-      wins: playerB.wins + (actualB === 1.0 ? 1 : 0),
-      losses: playerB.losses + (actualB === 0.0 ? 1 : 0),
-      draws: playerB.draws + (actualB === 0.5 ? 1 : 0),
-      lastPlayed: currentMatchTime,
-    },
-    expectedA: Number(blendedExpA.toFixed(4)),
-    expectedB: Number(blendedExpB.toFixed(4)),
+    playerA: updatedA,
+    playerB: updatedB,
+    expectedA: getE(pA.mu, pB.mu, pB.phi),
+    expectedB: getE(pB.mu, pA.mu, pA.phi),
   };
 }

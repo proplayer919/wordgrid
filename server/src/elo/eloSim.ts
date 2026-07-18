@@ -18,7 +18,7 @@ interface SimulationConfig {
 }
 
 function createPlayer(elo = 1200, deviation = 350): EloHolder {
-  return { elo, eloDeviation: deviation, wins: 0, losses: 0, draws: 0 };
+  return { elo, eloDeviation: deviation, volatility: 0.06, wins: 0, losses: 0, draws: 0 };
 }
 
 function runScenario(scenario: MatchScenario): { playerA: EloHolder; playerB: EloHolder } {
