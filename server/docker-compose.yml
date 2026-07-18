@@ -64,15 +64,16 @@ services:
     container_name: wordgrid-cadvisor
     restart: unless-stopped
     privileged: true
+    pid: host
     devices:
       - /dev/kmsg
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /sys/fs/cgroup:/sys/fs/cgroup:ro
     command:
       - --docker_only=true
       - --housekeeping_interval=10s
