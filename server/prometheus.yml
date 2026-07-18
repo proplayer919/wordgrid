@@ -8,10 +8,6 @@ scrape_configs:
     static_configs:
       - targets: ['wordgrid-server:8211']
 
-  - job_name: 'wordgrid-cadvisor'
-    static_configs:
-      - targets: ['wordgrid-cadvisor:8080']
-
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:1256']
