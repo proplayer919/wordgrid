@@ -23,6 +23,7 @@ jobs:
           directory: ./
           badge: ./output/badge.svg
           ignore: 'node_modules|\.git|\.github|\.vscode|\.idea|dist|build|out|coverage|\.cache|\.next|\.nuxt|\.parcel-cache|\.vercel|\.vercel_build_output|\.vercel_output'
+          badge_label: lines
 
       - name: Print the output
         run: |
