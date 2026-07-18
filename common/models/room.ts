@@ -1,5 +1,5 @@
-import { Puzzle } from '../../../common/game/puzzle';
-import { Board, type TimeConfig } from '../../../common/game/board';
+import { Puzzle } from '../game/puzzle';
+import { Board, type TimeConfig } from '../game/board';
 import type { User } from './user';
 
 export class Room {

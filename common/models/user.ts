@@ -1,4 +1,4 @@
-import { type EloHolder } from '../elo/elo';
+import { type EloHolder } from '../../server/src/elo/elo';
 
 export type UserRole = 'user' | 'admin' | 'owner';
 
