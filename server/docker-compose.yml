@@ -7,6 +7,13 @@ volumes:
 services:
   server:
     container_name: wordgrid-server
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+        reservations:
+          memory: 256M
     build:
       context: ..
       dockerfile: server/Dockerfile
@@ -50,7 +57,7 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--web.listen-address=:1256'
     depends_on:
-      - server
+      - serve
 
   grafana:
     image: grafana/grafana:latest
